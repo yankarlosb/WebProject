@@ -24,14 +24,15 @@ pub mod routes;
 
 // Re-exportar los módulos específicos de entidades para facilitar el acceso
 pub use database::{asignaturas, usuarios};
+pub use utils::cors::CORS;
 
 // Importar las rutas para usar en el macro routes!
 use routes::login::{
     login_get,
-    login_form,
     login_json,
     balance_page,
     logout,
+    verify_auth,
     unauthorized
 };
 
@@ -41,16 +42,23 @@ pub struct AppState {
 
 pub async fn run() -> Rocket<Build> {
     let db = utils::db::establish_connection().await;
+    
+    let frontend_path = if cfg!(debug_assertions) {
+        "../frontend/src"
+    } else {
+        "../frontend/dist"
+    };
+
     rocket::build()
         .manage(AppState { db })
-        .mount("/", routes![
-            // Rutas públicas
+        .attach(CORS)
+        .mount("/api", routes![
             login_get,
-            login_form,
+            login_json,
             logout,
+            verify_auth,
             balance_page,
-            login_json
         ])
         .register("/", catchers![unauthorized])
-        .mount("/frontend", FileServer::from("../frontend"))
+        .mount("/", FileServer::from(frontend_path))
 }
