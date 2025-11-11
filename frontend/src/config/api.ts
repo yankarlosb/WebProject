@@ -16,6 +16,7 @@ export const API_CONFIG = {
     BALANCE: '/api/balance',
     ASIGNATURAS: '/api/asignaturas',
     USUARIOS: '/api/usuarios',
+    ADMINISTRAR: '/api/manager',
   }
 };
 

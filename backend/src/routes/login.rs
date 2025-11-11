@@ -1,49 +1,36 @@
+use crate::utils::jwt::{AuthenticatedUser, Claims, LoginResponse, create_jwt};
 use crate::*;
-use crate::utils::jwt::{create_jwt, Claims, LoginResponse, AuthenticatedUser};
-use rocket::{get, post, catch};
-use rocket::response::content;
 use rocket::http::{Cookie, CookieJar, SameSite};
+use rocket::response::content;
 use rocket::time::Duration;
+use rocket::{catch, get, post};
 use serde::{Deserialize, Serialize};
-
-#[derive(FromForm)]
-pub struct LoginForm {
-    email: String,
-    password: String,
-}
 
 #[derive(Deserialize)]
 pub struct LoginJson {
-    email: String,
+    username: String,
     password: String,
 }
 
 #[derive(Serialize)]
 pub struct ApiResponse {
-    message: String,
-    alert: String,
+    pub message: String,
+    pub alert: String,
 }
 
-/// Página de login (HTML)
-#[get("/login")]
-pub async fn login_get() -> Option<NamedFile> {
-    NamedFile::open("../frontend/index.html").await.ok()
-}
-
-/// Login con JSON (devuelve token JWT y datos del usuario)
-/// Esta ruta maneja el login desde Vue.js
+// Esta ruta maneja el login desde Vue.js
 #[post("/login", format = "json", data = "<credentials>")]
 pub async fn login_json(
     credentials: Json<LoginJson>,
     db: &State<AppState>,
     cookies: &CookieJar<'_>,
 ) -> Json<LoginResponse> {
-    let email = &credentials.email;
+    let username = &credentials.username;
     let password = &credentials.password;
 
     // Buscar el usuario en la base de datos
     let entity = match usuarios::Entity::find()
-        .filter(usuarios::Column::Email.eq(email))
+        .filter(usuarios::Column::Name.eq(username))
         .one(&db.db)
         .await
     {
@@ -65,9 +52,9 @@ pub async fn login_json(
     // Crear los claims del JWT
     let claims = Claims::new(
         entity.id,
-        entity.email.clone(),
         entity.name.clone(),
-        entity.isadmin.unwrap_or(false),
+        entity.email.clone(),
+        entity.role.clone().unwrap_or_default(),
     );
 
     // Generar el token
@@ -77,13 +64,16 @@ pub async fn login_json(
             let mut cookie = Cookie::new("jwt_token", token.clone());
             cookie.set_http_only(true);
             cookie.set_same_site(SameSite::Lax);
+            cookie.set_secure(true);
             cookie.set_path("/");
             cookie.set_max_age(Duration::hours(24));
             cookies.add(cookie);
-            
-            Json(LoginResponse::success(token, &claims))
-        },
-        Err(_) => Json(LoginResponse::error("Error al generar el token".to_string())),
+
+            Json(LoginResponse::success("Login exitoso".to_string(), &claims))
+        }
+        Err(_) => Json(LoginResponse::error(
+            "Error al generar el token".to_string(),
+        )),
     }
 }
 
@@ -96,11 +86,11 @@ pub async fn balance_page(_user: AuthenticatedUser) -> Option<NamedFile> {
 }
 
 /// Logout - Elimina la cookie JWT y redirecciona al login
-#[get("/logout")]
+#[post("/logout")]
 pub fn logout(cookies: &CookieJar<'_>) -> Redirect {
     // Eliminar la cookie JWT
     cookies.remove(Cookie::build("jwt_token"));
-    
+
     // Redireccionar al login
     Redirect::to("/login")
 }
@@ -123,7 +113,8 @@ pub fn verify_auth(_user: AuthenticatedUser) -> Json<VerifyResponse> {
 /// Catcher para error 401 (No autorizado) - Muestra alerta y redirige
 #[catch(401)]
 pub fn unauthorized() -> content::RawHtml<&'static str> {
-    content::RawHtml(r#"
+    content::RawHtml(
+        r#"
         <!DOCTYPE html>
         <html>
         <head><meta charset="UTF-8"></head>
@@ -134,5 +125,6 @@ pub fn unauthorized() -> content::RawHtml<&'static str> {
             </script>
         </body>
         </html>
-    "#)
+    "#,
+    )
 }

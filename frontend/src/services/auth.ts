@@ -1,95 +1,181 @@
 /**
- * Servicio de autenticación
+ * Servicio de autenticación - Versión Mejorada
  * Maneja la verificación de autenticación con el backend JWT
  */
 
 import { API_CONFIG } from '../config/api';
 
-interface User {
+export interface User {
   id: number;
   name: string;
   email: string;
   isAdmin: boolean;
 }
 
+export interface AuthResponse {
+  success: boolean;
+  user?: User;
+  message?: string;
+}
+
 export class AuthService {
+  private static readonly AUTH_KEY = 'loggedIn';
+  private static readonly USER_KEY = 'currentUser';
+
   /**
    * Realiza el login del usuario
-   * @param email Email del usuario
-   * @param password Contraseña del usuario
-   * @returns Objeto con success, user opcional y message opcional
    */
-  static async login(email: string, password: string): Promise<{ success: boolean; user?: User; message?: string }> {
+  static async login(username: string, password: string): Promise<AuthResponse> {
     try {
       const response = await fetch(API_CONFIG.ENDPOINTS.LOGIN, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // Importante: para recibir la cookie JWT
-        body: JSON.stringify({ email, password })
+        credentials: 'include', // Para recibir la cookie HttpOnly
+        body: JSON.stringify({ username, password })
       });
 
       const data = await response.json();
       
       if (data.success && data.user) {
-        const user: User = {
-          id: data.user.id,
-          name: data.user.name,
-          email: data.user.email,
-          isAdmin: data.user.is_admin
-        };
+        const user: User = this.normalizeUser(data.user);
         
-        // Guardar datos locales para mejorar UX
+        // Guardar datos locales
         this.setLocalAuth(user);
         
         return { success: true, user };
       }
       
-      return { success: false, message: data.message || 'Error al iniciar sesión' };
-    } catch (error) {
-      console.error('Error al conectar con el backend:', error);
       return { 
         success: false, 
-        message: 'Error al conectar con el servidor. Asegúrese de que el backend esté corriendo en el puerto 8000.' 
+        message: data.message || 'Error al iniciar sesión' 
+      };
+    } catch (error) {
+      console.error('Error en login:', error);
+      return { 
+        success: false, 
+        message: 'Error de conexión con el servidor' 
       };
     }
   }
 
-  static async checkAuth(): Promise<boolean> {
+  /**
+   * Verifica autenticación y sincroniza datos del usuario
+   */
+  static async checkAuth(): Promise<{ isAuthenticated: boolean; user?: User }> {
+    // Primero verificar localmente para UX rápida
+    if (!this.isLocallyAuthenticated()) {
+      return { isAuthenticated: false };
+    }
+
     try {
       const response = await fetch(API_CONFIG.ENDPOINTS.VERIFY, {
         method: 'GET',
-        credentials: 'include', // Importante: incluye las cookies
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         }
       });
 
       if (response.ok) {
-        // Si el backend responde OK, el JWT es válido
-        return true;
-      }
-      
-      // Si es 401 Unauthorized, el token no es válido o expiró
-      if (response.status === 401) {
-        this.clearLocalAuth();
-        return false;
+        const data = await response.json();
+        
+        // Si el endpoint retorna datos del usuario, actualizar
+        if (data.user) {
+          const user = this.normalizeUser(data.user);
+          this.setLocalAuth(user);
+          return { isAuthenticated: true, user };
+        }
+        
+        // Si no retorna usuario, mantener el actual
+        const currentUser = this.getCurrentUser();
+        return { 
+          isAuthenticated: true, 
+          user: currentUser || undefined 
+        };
       }
 
-      return false;
+      // Token inválido o expirado
+      if (response.status === 401) {
+        this.clearLocalAuth();
+        return { isAuthenticated: false };
+      }
+
+      // Otro error
+      console.error('Error en checkAuth:', response.status);
+      return { isAuthenticated: false };
+
     } catch (error) {
       console.error('Error verificando autenticación:', error);
-      return false;
+      
+      // En caso de error de red, mantener estado local para mejor UX
+      // pero marcar como posiblemente desconectado
+      return { 
+        isAuthenticated: this.isLocallyAuthenticated(),
+        user: this.getCurrentUser() || undefined
+      };
     }
   }
 
+  /**
+   * Cierra sesión en frontend y backend
+   */
+  static async logout(): Promise<{ success: boolean; message?: string }> {
+    try {
+      // Intentar logout en backend
+      const response = await fetch(API_CONFIG.ENDPOINTS.LOGOUT, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        console.warn('Logout en backend falló, pero limpiando frontend');
+      }
+    } catch (error) {
+      console.error('Error en logout backend:', error);
+    } finally {
+      // Siempre limpiar frontend
+      this.clearLocalAuth();
+      
+      // Intentar limpiar cookie manualmente (fallback)
+      this.clearAuthCookie();
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Normaliza datos del usuario desde el backend
+   */
+  private static normalizeUser(userData: any): User {
+    return {
+      id: userData.id,
+      name: userData.name || userData.username,
+      email: userData.email,
+      isAdmin: userData.isAdmin || userData.is_admin || false
+    };
+  }
+
+  /**
+   * Limpia la cookie de autenticación (fallback)
+   */
+  private static clearAuthCookie(): void {
+    // Esto es un fallback por si el backend no limpia la cookie
+    document.cookie = 'jwt_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+  }
+
+  // --- Métodos de persistencia local ---
+
   static isLocallyAuthenticated(): boolean {
-    return sessionStorage.getItem('loggedIn') === 'true';
+    return localStorage.getItem(this.AUTH_KEY) === 'true';
   }
 
   static getCurrentUser(): User | null {
-    const userStr = sessionStorage.getItem('currentUser');
+    const userStr = localStorage.getItem(this.USER_KEY);
     if (!userStr) return null;
     
     try {
@@ -99,31 +185,24 @@ export class AuthService {
     }
   }
 
-  static clearLocalAuth(): void {
-    sessionStorage.removeItem('loggedIn');
-    sessionStorage.removeItem('currentUser');
+  private static clearLocalAuth(): void {
+    localStorage.removeItem(this.AUTH_KEY);
+    localStorage.removeItem(this.USER_KEY);
   }
 
-  static setLocalAuth(user: User): void {
-    sessionStorage.setItem('loggedIn', 'true');
-    sessionStorage.setItem('currentUser', JSON.stringify(user));
+  private static setLocalAuth(user: User): void {
+    localStorage.setItem(this.AUTH_KEY, 'true');
+    localStorage.setItem(this.USER_KEY, JSON.stringify(user));
   }
 
-  static async logout(): Promise<void> {
-    try {
-      // Llamar al endpoint de logout para invalidar el JWT en el backend
-      await fetch(API_CONFIG.ENDPOINTS.LOGOUT, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-    } catch (error) {
-      console.error('Error al hacer logout:', error);
-    } finally {
-      // Siempre limpiar los datos locales
-      this.clearLocalAuth();
+  /**
+   * Actualiza datos locales del usuario (útil para edición de perfil)
+   */
+  static updateLocalUser(userUpdates: Partial<User>): void {
+    const currentUser = this.getCurrentUser();
+    if (currentUser) {
+      const updatedUser = { ...currentUser, ...userUpdates };
+      localStorage.setItem(this.USER_KEY, JSON.stringify(updatedUser));
     }
   }
 }

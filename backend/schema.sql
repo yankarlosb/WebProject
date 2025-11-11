@@ -4,13 +4,21 @@ CREATE TABLE usuarios (
     email VARCHAR(150) UNIQUE NOT NULL,
     token VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_admin BOOLEAN DEFAULT FALSE,
-    can_write BOOLEAN DEFAULT FALSE
+    role VARCHAR(50) DEFAULT 'user'
 );
 
 CREATE TABLE asignaturas (
     id SERIAL PRIMARY KEY,
+    jefe_id INTEGER UNIQUE REFERENCES usuarios(id),
     name VARCHAR(100) NOT NULL,
     year VARCHAR(150) NOT NULL,
-    semester VARCHAR(255) NOT NULL
+    semester VARCHAR(255) NOT NULL,
+    CP INTEGER,
+    C INTEGER, 
+    L INTEGER,
+    T INTEGER,
+    S INTEGER,
+    PP INTEGER,
+    PF INTEGER,
+    hours INTEGER,
 );

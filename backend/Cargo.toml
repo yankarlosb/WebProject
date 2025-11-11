@@ -1,5 +1,5 @@
 [package]
-name = "WebProyect"
+name = "web_project"
 version = "0.1.0"
 edition = "2024"
 
@@ -12,3 +12,4 @@ dotenvy = "0.15"
 bcrypt = "0.17"
 jsonwebtoken = "9.3"
 chrono = { version = "0.4", features = ["serde"] }
+once_cell = "1.19"

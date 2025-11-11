@@ -1,27 +1,30 @@
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
+//use rocket::http::CookieJar;
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome, Request};
-use rocket::http::CookieJar;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
+use once_cell::sync::Lazy;
 
 // Clave secreta para firmar los tokens (en producción, debe estar en variables de entorno)
-const JWT_SECRET: &str = "tu_clave_secreta_muy_segura_cambiar_en_produccion";
+static JWT_SECRET: Lazy<String> = Lazy::new(|| {
+    std::env::var("JWT_SECRET").unwrap()
+});
 
 // Estructura de los claims del JWT
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
-    pub sub: String,      // Subject (user ID)
-    pub email: String,    // Email del usuario
-    pub name: String,     // Nombre del usuario
-    pub is_admin: bool,   // Si es administrador
-    pub exp: usize,       // Expiration time (timestamp)
-    pub iat: usize,       // Issued at (timestamp)
+    pub sub: String,   // Subject (user ID)
+    pub email: String, // Email del usuario
+    pub name: String,  // Nombre del usuario
+    pub role: String,  // Rol del usuario
+    pub exp: usize,    // Expiration time (timestamp)
+    pub iat: usize,    // Issued at (timestamp)
 }
 
 impl Claims {
     /// Crea un nuevo claim con una expiración de 24 horas
-    pub fn new(user_id: i32, email: String, name: String, is_admin: bool) -> Self {
+    pub fn new(user_id: i32, email: String, name: String, role: String) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
@@ -31,7 +34,7 @@ impl Claims {
             sub: user_id.to_string(),
             email,
             name,
-            is_admin,
+            role,
             iat: now,
             exp: now + 86400, // 24 horas = 86400 segundos
         }
@@ -42,7 +45,7 @@ impl Claims {
         user_id: i32,
         email: String,
         name: String,
-        is_admin: bool,
+        role: String,
         expiration_secs: usize,
     ) -> Self {
         let now = SystemTime::now()
@@ -54,7 +57,7 @@ impl Claims {
             sub: user_id.to_string(),
             email,
             name,
-            is_admin,
+            role,
             iat: now,
             exp: now + expiration_secs,
         }
@@ -87,7 +90,7 @@ pub fn decode_jwt(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
 // ============================================================================
 
 /// Guardián que valida que el usuario esté autenticado
-/// Extrae el token del header Authorization: Bearer <token> O de la cookie jwt_token
+/// Extrae el token del header Authorization: Bearer <token> O de la cookie Auth
 pub struct AuthenticatedUser(pub Claims);
 
 #[rocket::async_trait]
@@ -95,26 +98,11 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
     type Error = ();
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        // Intentar obtener el token del header Authorization primero
-        let token_from_header = request
-            .headers()
-            .get_one("Authorization")
-            .and_then(|header| {
-                if header.starts_with("Bearer ") {
-                    Some(header[7..].to_string())
-                } else {
-                    None
-                }
-            });
-
-        // Si no hay token en el header, intentar obtenerlo de la cookie
-        let token = match token_from_header {
-            Some(t) => Some(t),
-            None => {
-                let cookies = request.cookies();
-                cookies.get("jwt_token").map(|c| c.value().to_string())
-            }
-        };
+        let cookies = request.cookies();
+        
+        // SOLO obtener de cookie HttpOnly
+        let token = cookies.get("jwt_token")  // Nombre específico
+            .map(|c| c.value().to_string());
 
         match token {
             Some(token) => match decode_jwt(&token) {
@@ -126,11 +114,10 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
     }
 }
 
-/// Guardián que valida que el usuario sea administrador
-pub struct AdminUser(pub Claims);
+pub struct User(pub Claims);
 
 #[rocket::async_trait]
-impl<'r> FromRequest<'r> for AdminUser {
+impl<'r> FromRequest<'r> for User {
     type Error = ();
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
@@ -141,19 +128,20 @@ impl<'r> FromRequest<'r> for AdminUser {
             Outcome::Forward(f) => return Outcome::Forward(f),
         };
 
-        // Verificamos que sea administrador
-        if auth_user.0.is_admin {
-            Outcome::Success(AdminUser(auth_user.0))
+        // Luego verificamos que tenga un rol válido
+        if auth_user.0.role == "admin"
+            || auth_user.0.role == "subjectLeader"
+            || auth_user.0.role == "user"
+            || auth_user.0.role == "leader"
+        {
+            Outcome::Success(User(auth_user.0))
         } else {
             Outcome::Error((Status::Forbidden, ()))
         }
     }
 }
 
-// ============================================================================
 // RESPUESTAS JSON PARA AUTENTICACIÓN
-// ============================================================================
-
 #[derive(Serialize, Deserialize)]
 pub struct LoginResponse {
     pub success: bool,
@@ -167,7 +155,7 @@ pub struct UserInfo {
     pub id: String,
     pub name: String,
     pub email: String,
-    pub is_admin: bool,
+    pub role: String,
 }
 
 impl LoginResponse {
@@ -180,7 +168,7 @@ impl LoginResponse {
                 id: claims.sub.clone(),
                 name: claims.name.clone(),
                 email: claims.email.clone(),
-                is_admin: claims.is_admin,
+                role: claims.role.clone(),
             }),
         }
     }
