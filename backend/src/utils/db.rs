@@ -65,38 +65,41 @@ pub async fn list_users(db: &DatabaseConnection) -> Result<Vec<usuarios::Model>,
     Ok(users)
 }
 
+/// Modify user data (admin operation - can change role)
 pub async fn modify_user(db: &DatabaseConnection, user_id: i32, user_data: &usuarios::Model) -> Result<(), sea_orm::DbErr> {
-    use sea_orm::ActiveModelTrait;
-    use sea_orm::EntityTrait;
-    use sea_orm::Set;
-
-    let mut modified_user: ActiveModel = usuarios::Entity::find_by_id(user_id).one(db).await?.expect("No se pudo obtener el usuario").into();
-
-    modified_user = usuarios::ActiveModel {
-        name: Set(user_data.name.clone()),
-        email: Set(user_data.email.clone()),
-        role: Set(user_data.role.clone()),
-        ..modified_user
-    };
-
-    modified_user.update(db).await?;
-    Ok(())
+    update_user_fields(db, user_id, user_data, true).await
 }
 
+/// Change user profile (user operation - cannot change role)
 pub async fn change_profile(db: &DatabaseConnection, user_id: i32, user_data: usuarios::Model) -> Result<(), sea_orm::DbErr> {
+    update_user_fields(db, user_id, &user_data, false).await
+}
+
+/// Internal helper to update user fields
+async fn update_user_fields(
+    db: &DatabaseConnection,
+    user_id: i32,
+    user_data: &usuarios::Model,
+    update_role: bool,
+) -> Result<(), sea_orm::DbErr> {
     use sea_orm::ActiveModelTrait;
     use sea_orm::EntityTrait;
     use sea_orm::Set;
 
-    let mut modified_user: ActiveModel = usuarios::Entity::find_by_id(user_id).one(db).await?.expect("No se pudo obtener el usuario").into();
+    let mut modified_user: ActiveModel = usuarios::Entity::find_by_id(user_id)
+        .one(db)
+        .await?
+        .expect("No se pudo obtener el usuario")
+        .into();
 
-    
+    // Always update name and email
+    modified_user.name = Set(user_data.name.clone());
+    modified_user.email = Set(user_data.email.clone());
 
-    modified_user = usuarios::ActiveModel {
-        name: Set(user_data.name.clone()),
-        email: Set(user_data.email.clone()),
-        ..modified_user
-    };
+    // Only update role if allowed (admin operation)
+    if update_role {
+        modified_user.role = Set(user_data.role.clone());
+    }
 
     modified_user.update(db).await?;
     Ok(())

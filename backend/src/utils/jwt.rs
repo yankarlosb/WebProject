@@ -108,6 +108,12 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
     }
 }
 
+/// Helper function to check if a user has a specific role
+fn has_role(auth_user: &AuthenticatedUser, allowed_roles: &[&str]) -> bool {
+    allowed_roles.contains(&auth_user.0.role.as_str())
+}
+
+/// User guard - accepts any authenticated user with a valid role
 pub struct User(pub Claims);
 
 #[rocket::async_trait]
@@ -115,18 +121,13 @@ impl<'r> FromRequest<'r> for User {
     type Error = ();
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        // Primero verificamos que esté autenticado
         let auth_user = match request.guard::<AuthenticatedUser>().await {
             Outcome::Success(user) => user,
             Outcome::Error(e) => return Outcome::Error(e),
             Outcome::Forward(f) => return Outcome::Forward(f),
         };
 
-        // Luego verificamos que tenga un rol válido
-        if auth_user.0.role == "subjectLeader"
-            || auth_user.0.role == "user"
-            || auth_user.0.role == "admin" 
-            || auth_user.0.role == "leader"{
+        if has_role(&auth_user, &["admin", "leader", "subjectLeader", "user"]) {
             Outcome::Success(User(auth_user.0))
         } else {
             Outcome::Error((Status::Forbidden, ()))
@@ -134,7 +135,7 @@ impl<'r> FromRequest<'r> for User {
     }
 }
 
-/// Guardián que valida que el usuario sea administrador
+/// Admin guard - only allows admin users
 pub struct AdminUser(pub Claims);
 
 #[rocket::async_trait]
@@ -142,23 +143,21 @@ impl<'r> FromRequest<'r> for AdminUser {
     type Error = ();
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        // Primero verificamos que esté autenticado
         let auth_user = match request.guard::<AuthenticatedUser>().await {
             Outcome::Success(user) => user,
             Outcome::Error(e) => return Outcome::Error(e),
             Outcome::Forward(f) => return Outcome::Forward(f),
         };
 
-        // Verificar que el rol sea "admin"
-        if auth_user.0.role == "admin" {
+        if has_role(&auth_user, &["admin"]) {
             Outcome::Success(AdminUser(auth_user.0))
         } else {
-            // No es admin, denegar acceso
             Outcome::Error((Status::Forbidden, ()))
         }
     }
 }
 
+/// Leader guard - only allows leader users
 pub struct LeaderUser(pub Claims);
 
 #[rocket::async_trait]
@@ -166,23 +165,21 @@ impl<'r> FromRequest<'r> for LeaderUser {
     type Error = ();
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        // Primero verificamos que esté autenticado
         let auth_user = match request.guard::<AuthenticatedUser>().await {
             Outcome::Success(user) => user,
             Outcome::Error(e) => return Outcome::Error(e),
             Outcome::Forward(f) => return Outcome::Forward(f),
         };
 
-        // Verificar que el rol sea "leader"
-        if auth_user.0.role == "leader" {
+        if has_role(&auth_user, &["leader"]) {
             Outcome::Success(LeaderUser(auth_user.0))
         } else {
-            // No es leader, denegar acceso
             Outcome::Error((Status::Forbidden, ()))
         }
     }
 }
 
+/// SubjectLeader guard - only allows subject leader users
 pub struct SubjectLeaderUser(pub Claims);
 
 #[rocket::async_trait]
@@ -190,18 +187,15 @@ impl<'r> FromRequest<'r> for SubjectLeaderUser {
     type Error = ();
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        // Primero verificamos que esté autenticado
         let auth_user = match request.guard::<AuthenticatedUser>().await {
             Outcome::Success(user) => user,
             Outcome::Error(e) => return Outcome::Error(e),
             Outcome::Forward(f) => return Outcome::Forward(f),
         };
 
-        // Verificar que el rol sea "subjectLeader"
-        if auth_user.0.role == "subjectLeader" {
+        if has_role(&auth_user, &["subjectLeader"]) {
             Outcome::Success(SubjectLeaderUser(auth_user.0))
         } else {
-            // No es subjectLeader, denegar acceso
             Outcome::Error((Status::Forbidden, ()))
         }
     }
