@@ -38,9 +38,23 @@ export class AuthService {
 
       const data = await response.json();
       
+      // Verificar si el login fue exitoso
+      if (response.ok && data.success) {
+        // Normalizar y guardar datos del usuario
+        const user = this.normalizeUser(data.user || data);
+        this.setLocalAuth(user);
+        
+        return { 
+          success: true, 
+          user,
+          message: data.message || 'Inicio de sesión exitoso' 
+        };
+      }
+      
+      // Login falló
       return { 
         success: false, 
-        message: data.message || 'Error al iniciar sesión' 
+        message: data.message || 'Credenciales inválidas' 
       };
     } catch (error) {
       console.error('Error en login:', error);
