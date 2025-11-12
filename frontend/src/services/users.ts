@@ -9,8 +9,8 @@ export interface User {
   id: number
   name: string
   email: string
-  token: string // Contraseña hasheada
-  role: string // 'admin' | 'user' | 'leader' | 'subjectLeader'
+  token: string 
+  role: string
   created_at?: string
 }
 
@@ -86,34 +86,6 @@ export class UsersService {
       }
     }
   }
-
-//   /**
-//    * Obtener un usuario por ID
-//    */
-//   static async getById(id: number): Promise<UsersResponse> {
-//     try {
-//       const response = await fetch(`${this.BASE_URL}/users/${id}`, {
-//         method: 'GET',
-//         credentials: 'include',
-//         headers: {
-//           'Content-Type': 'application/json',
-//         },
-//       })
-
-//       if (!response.ok) {
-//         throw new Error('Error al obtener usuario')
-//       }
-
-//       const data = await response.json()
-//       return { success: true, user: data.user || data }
-//     } catch (error) {
-//       console.error('Error en getById:', error)
-//       return {
-//         success: false,
-//         message: 'Error al cargar el usuario',
-//       }
-//     }
-//   }
 
   /**
    * Crear un nuevo usuario

@@ -5,6 +5,7 @@ use rocket::response::content;
 use rocket::time::Duration;
 use rocket::{catch, get, post};
 use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
 
 #[derive(Deserialize)]
 pub struct LoginJson {
@@ -24,6 +25,7 @@ pub async fn login_json(
     credentials: Json<LoginJson>,
     db: &State<AppState>,
     cookies: &CookieJar<'_>,
+    remote_addr: Option<SocketAddr>,
 ) -> Json<LoginResponse> {
     let username = &credentials.username;
     let password = &credentials.password;
@@ -49,12 +51,15 @@ pub async fn login_json(
         return Json(LoginResponse::error("Contraseña incorrecta".to_string()));
     }
 
+    println!("IP del usuario: {:?}", remote_addr);
+
     // Crear los claims del JWT
     let claims = Claims::new(
         entity.id,
         entity.name.clone(),
         entity.email.clone(),
         entity.role.clone().unwrap_or_default(),
+        remote_addr,
     );
 
     // Generar el token
@@ -62,7 +67,7 @@ pub async fn login_json(
         Ok(token) => {
             // Establecer cookie HttpOnly con el token (seguridad adicional)
             let mut cookie = Cookie::new("jwt_token", token.clone());
-            cookie.set_http_only(true);
+            cookie.set_http_only(false);
             cookie.set_same_site(SameSite::Lax);
             cookie.set_secure(true);
             cookie.set_path("/");

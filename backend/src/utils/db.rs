@@ -82,3 +82,22 @@ pub async fn modify_user(db: &DatabaseConnection, user_id: i32, user_data: &usua
     modified_user.update(db).await?;
     Ok(())
 }
+
+pub async fn change_profile(db: &DatabaseConnection, user_id: i32, user_data: usuarios::Model) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::ActiveModelTrait;
+    use sea_orm::EntityTrait;
+    use sea_orm::Set;
+
+    let mut modified_user: ActiveModel = usuarios::Entity::find_by_id(user_id).one(db).await?.expect("No se pudo obtener el usuario").into();
+
+    
+
+    modified_user = usuarios::ActiveModel {
+        name: Set(user_data.name.clone()),
+        email: Set(user_data.email.clone()),
+        ..modified_user
+    };
+
+    modified_user.update(db).await?;
+    Ok(())
+}
