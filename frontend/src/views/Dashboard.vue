@@ -1,319 +1,226 @@
+/**
+ * Dashboard - Vista principal rediseñada
+ * Usa el nuevo sistema de componentes y stores
+ */
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
-    <!-- ENCABEZADO -->
-    <header class="bg-gradient-to-r from-blue-600 via-blue-500 to-blue-400 shadow-lg px-8 py-6">
-      <div class="max-w-7xl mx-auto flex items-center justify-between">
-        <div class="flex items-center space-x-4">
-          <div class="w-12 h-12 flex items-center justify-center bg-white/20 rounded-full shadow-lg">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="4" fill="url(#g)" />
-              <defs>
-                <linearGradient id="g" x1="0" x2="1">
-                  <stop offset="0" stop-color="#4fa6ff" />
-                  <stop offset="1" stop-color="#0b5fff" />
-                </linearGradient>
-              </defs>
+  <AppLayout>
+    <!-- Welcome Section -->
+    <AppCard class="mb-8">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h2 class="text-3xl font-bold text-blue-700">
+            ¡Bienvenido, {{ authStore.userName }}!
+          </h2>
+          <p class="text-gray-600 mt-2">
+            Sistema de Balance de Carga Docente - Facultad de Ciberseguridad
+          </p>
+        </div>
+        
+        <AppButton
+          variant="primary"
+          size="lg"
+          @click="router.push('/balance')"
+        >
+          <template #icon>
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
             </svg>
-          </div>
-          <div>
-            <h1 class="text-2xl font-bold text-white tracking-wide drop-shadow">
-              CiberBalance
-            </h1>
-            <p class="text-sm text-blue-100 mt-1">
-              Facultad de Ciberseguridad
-            </p>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-6">
-          <div class="text-right">
-            <div class="font-semibold text-white text-lg">
-              {{ currentUser }}
-            </div>
-            <div class="text-sm text-blue-100">
-              {{ currentUserRole }}
-            </div>
-          </div>
-          <button
-            @click="logout"
-            class="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg shadow transition font-semibold"
-          >
-            Cerrar Sesión
-          </button>
-        </div>
+          </template>
+          Nuevo Balance
+        </AppButton>
       </div>
-    </header>
+    </AppCard>
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 mt-10">
-      <div class="grid grid-cols-1 lg:grid-cols-6 gap-6">
-  <!-- BARRA LATERAL -->
-        <aside class="lg:col-span-1 bg-white/80 border border-blue-100 rounded-xl p-6 shadow-lg backdrop-blur">
-          <nav class="space-y-2">
-            <div
-              v-for="item in navItems"
-              :key="item.path"
-              @click="navigate(item.path)"
-              class="flex items-center space-x-3 px-4 py-3 rounded-lg cursor-pointer transition-all duration-200 font-semibold shadow-sm"
-              :class="
-                item.path === currentRoute
-                  ? 'bg-blue-600 text-white shadow-lg scale-105'
-                  : 'text-gray-700 hover:bg-blue-50 hover:scale-105'
-              "
-            >
-              <span class="w-6 h-6" v-html="iconFor(item.icon)"></span>
-              <span class="text-base">{{ item.label }}</span>
-            </div>
-          </nav>
-        </aside>
-
-  <!-- CONTENIDO PRINCIPAL -->
-        <main class="lg:col-span-5 space-y-8">
-          <section class="bg-white/90 p-8 rounded-xl shadow-lg border border-blue-100">
-            <div class="flex items-center justify-between">
-              <div>
-                <h2 class="text-3xl font-bold text-blue-700 drop-shadow">
-                  ¡Bienvenido, {{ currentUser }}!
-                </h2>
-                <p class="text-lg text-gray-500 mt-2">
-                  Sistema de Balance de Carga Docente
-                </p>
-              </div>
-              <div class="flex items-center space-x-3">
-                <button
-                  @click="navigate('/balance')"
-                  class="px-4 py-2 bg-blue-600 text-white rounded-lg text-base hover:bg-blue-700 font-semibold shadow"
-                >
-                  Nuevo Balance
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <!-- Estadísticas -->
-          <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div
-              class="bg-gradient-to-br from-blue-100 via-white to-blue-50 p-6 rounded-xl shadow-lg border border-blue-200 hover:shadow-xl transition-shadow duration-200"
-            >
-              <div class="text-base text-blue-700 font-semibold">
-                Años Académicos
-              </div>
-              <div class="text-4xl font-extrabold text-blue-900 mt-2">4</div>
-            </div>
-            <div
-              class="bg-gradient-to-br from-green-100 via-white to-green-50 p-6 rounded-xl shadow-lg border border-green-200 hover:shadow-xl transition-shadow duration-200"
-            >
-              <div class="text-base text-green-700 font-semibold">
-                Asignaturas Activas
-              </div>
-              <div class="text-4xl font-extrabold text-green-900 mt-2">24</div>
-            </div>
-            <div
-              class="bg-gradient-to-br from-yellow-100 via-white to-yellow-50 p-6 rounded-xl shadow-lg border border-yellow-200 hover:shadow-xl transition-shadow duration-200"
-            >
-              <div class="text-base text-yellow-700 font-semibold">
-                Semanas por Semestre
-              </div>
-              <div class="text-4xl font-extrabold text-yellow-900 mt-2">15</div>
-            </div>
-            <div
-              class="bg-gradient-to-br from-purple-100 via-white to-purple-50 p-6 rounded-xl shadow-lg border border-purple-200 hover:shadow-xl transition-shadow duration-200"
-            >
-              <div class="text-base text-purple-700 font-semibold">
-                Períodos Académicos
-              </div>
-              <div class="text-4xl font-extrabold text-purple-900 mt-2">2</div>
-            </div>
-          </section>
-
-          <!-- Acciones rápidas + balances recientes -->
-          <section class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div class="col-span-full bg-white/90 p-8 rounded-xl shadow-lg border border-blue-100">
-              <div class="flex items-center justify-between mb-6">
-                <h3 class="text-2xl font-bold text-blue-700">Balances Recientes</h3>
-                <button
-                  @click="navigate('/balance')"
-                  class="text-base text-blue-600 hover:underline font-semibold"
-                >
-                  Ver todos
-                </button>
-              </div>
-
-              <div class="overflow-hidden rounded-xl border border-blue-100 shadow">
-                <table class="min-w-full divide-y divide-blue-100">
-                  <thead class="bg-blue-50">
-                    <tr>
-                      <th
-                        class="px-6 py-4 text-left text-sm font-bold text-blue-700 uppercase tracking-wider"
-                      >
-                        Año
-                      </th>
-                      <th
-                        class="px-6 py-4 text-left text-sm font-bold text-blue-700 uppercase tracking-wider"
-                      >
-                        Período
-                      </th>
-                      <th
-                        class="px-6 py-4 text-left text-sm font-bold text-blue-700 uppercase tracking-wider"
-                      >
-                        Fecha
-                      </th>
-                      <th
-                        class="px-6 py-4 text-center text-sm font-bold text-blue-700 uppercase tracking-wider"
-                      >
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody class="bg-white divide-y divide-blue-50">
-                    <tr
-                      v-for="(balance, index) in recentBalances"
-                      :key="index"
-                      class="hover:bg-blue-50 transition"
-                    >
-                      <td class="px-6 py-4 text-base text-blue-900 font-semibold">
-                        {{ balance.year }}
-                      </td>
-                      <td class="px-6 py-4 text-base text-blue-800">
-                        {{ balance.period }}
-                      </td>
-                      <td class="px-6 py-4 text-base text-blue-800">
-                        {{ balance.date }}
-                      </td>
-                      <td class="px-6 py-4 text-center">
-                        <div class="inline-flex rounded-lg shadow-sm" role="group">
-                          <button
-                            @click="navigate('/balance', { id: String(balance.id) })"
-                            class="px-4 py-2 text-base bg-blue-600 text-white rounded-l-lg hover:bg-blue-700 font-semibold"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            disabled
-                            class="px-4 py-2 text-base bg-gray-100 text-gray-400 rounded-r-lg font-semibold"
-                          >
-                            Exportar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
-        </main>
-      </div>
+    <!-- Estadísticas -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <StatsCard
+        title="Años Académicos"
+        :value="stats.academicYears"
+        icon="calendar"
+        color="blue"
+      />
+      <StatsCard
+        title="Asignaturas"
+        :value="asignaturasStore.asignaturasCount"
+        icon="book"
+        color="green"
+      />
+      <StatsCard
+        title="Semanas"
+        :value="stats.weeks"
+        icon="clock"
+        color="yellow"
+      />
+      <StatsCard
+        title="Balances Guardados"
+        :value="recentBalances.length"
+        icon="document"
+        color="purple"
+      />
     </div>
-  </div>
+
+    <!-- Accesos Rápidos -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <QuickAccessCard
+        title="Balance de Carga"
+        description="Crear o editar balance docente"
+        icon="table"
+        color="blue"
+        @click="router.push('/balance')"
+      />
+      <QuickAccessCard
+        title="Asignaturas"
+        description="Gestionar asignaturas del sistema"
+        icon="book"
+        color="green"
+        @click="router.push('/asignaturas')"
+      />
+      <QuickAccessCard
+        title="Mi Perfil"
+        description="Editar información personal"
+        icon="user"
+        color="purple"
+        @click="router.push('/perfil')"
+      />
+      <QuickAccessCard
+        v-if="authStore.isAdmin"
+        title="Configuración"
+        description="Administrar usuarios y sistema"
+        icon="settings"
+        color="gray"
+        @click="router.push('/configuracion')"
+      />
+    </div>
+
+    <!-- Balances Recientes -->
+    <AppCard title="Balances Recientes">
+      <template #actions>
+        <AppButton
+          variant="ghost"
+          size="sm"
+          @click="router.push('/balance')"
+        >
+          Ver todos
+        </AppButton>
+      </template>
+
+      <div v-if="recentBalances.length === 0" class="text-center py-12">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">No hay balances</h3>
+        <p class="mt-1 text-sm text-gray-500">Comienza creando tu primer balance de carga.</p>
+        <div class="mt-6">
+          <AppButton variant="primary" @click="router.push('/balance')">
+            <template #icon>
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+            </template>
+            Crear Balance
+          </AppButton>
+        </div>
+      </div>
+
+      <div v-else class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-blue-100">
+          <thead class="bg-blue-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-bold text-blue-700 uppercase tracking-wider">
+                Año Académico
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-bold text-blue-700 uppercase tracking-wider">
+                Período
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-bold text-blue-700 uppercase tracking-wider">
+                Fecha
+              </th>
+              <th class="px-6 py-3 text-center text-xs font-bold text-blue-700 uppercase tracking-wider">
+                Acciones
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-blue-50">
+            <tr
+              v-for="balance in recentBalances"
+              :key="balance.id"
+              class="hover:bg-blue-50 transition"
+            >
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-900">
+                {{ balance.year }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-800">
+                {{ balance.period }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-800">
+                {{ balance.date }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-center">
+                <div class="flex justify-center gap-2">
+                  <AppButton
+                    variant="primary"
+                    size="sm"
+                    @click="editBalance(balance.id)"
+                  >
+                    Editar
+                  </AppButton>
+                  <AppButton
+                    variant="secondary"
+                    size="sm"
+                    disabled
+                  >
+                    Exportar
+                  </AppButton>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </AppCard>
+  </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { useAsignaturasStore } from '../stores/asignaturas'
+import AppLayout from '../components/AppLayout.vue'
+import AppCard from '../components/AppCard.vue'
+import AppButton from '../components/AppButton.vue'
+import StatsCard from '../components/StatsCard.vue'
+import QuickAccessCard from '../components/QuickAccessCard.vue'
 
 const router = useRouter()
-const route = useRoute()
+const authStore = useAuthStore()
+const asignaturasStore = useAsignaturasStore()
 
-const currentUser = ref<string>('Coordinador Académico')
-const currentUserRole = ref<string>('Administrador')
-const currentRoute = ref<string>(route.path)
+// Estadísticas
+const stats = ref({
+  academicYears: 4,
+  weeks: 15,
+})
 
-watch(
-  () => route.path,
-  (newPath) => {
-    currentRoute.value = newPath
-  }
-)
-
-// Datos estáticos (puedes reemplazar por API luego)
-// Asegurarse de que la navegación a configuración funcione correctamente
-// Si hay algún error de tipografía o path, aquí se puede ajustar
-const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { path: '/balance', label: 'Balance de Carga', icon: 'balance' },
-  { path: '/asignaturas', label: 'Gestión de Asignaturas', icon: 'subjects' },
-  { path: '/configuracion', label: 'Configuración', icon: 'settings' },
-]
-
-const iconFor = (name: string) => {
-  switch (name) {
-    case 'dashboard':
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 13h8V3H3v10zM3 21h8v-6H3v6zM13 21h8V11h-8v10zM13 3v6h8V3h-8z" />
-        </svg>
-      `
-    case 'balance':
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 10h18M5 6h14M7 14h10M9 18h6" />
-        </svg>
-      `
-    case 'subjects':
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2-1.343-2-3-2zM6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" />
-        </svg>
-      `
-    case 'settings':
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06A2 2 0 014.27 16.9l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82L4.21 3.7A2 2 0 016.9 2.27l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001 1.51V6a2 2 0 014 0v.09c.35.07.68.27 1 .51h.01a1.65 1.65 0 001.82-.33l.06-.06A2 2 0 0119.73 7.1l-.06.06a1.65 1.65 0 00-.33 1.82 1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09c-.65 0-1.14.54-1.51 1z" />
-        </svg>
-      `
-    default:
-      return ''
-  }
-}
-
-const recentBalances = ref<Array<{ id?: string; year: string; period: string; date: string }>>([])
-
-// Métodos
-
-const navigate = (path: string, query?: Record<string, string>) => {
-  router.push({ path, query })
-}
-
-const logout = () => {
-  sessionStorage.clear()
-  router.push('/login')
-}
+// Balances recientes
+const recentBalances = ref<Array<{ id: string; year: string; period: string; date: string }>>([])
 
 onMounted(() => {
-  // Verificar autenticación
-  const isLoggedIn = sessionStorage.getItem('loggedIn')
-  if (!isLoggedIn) {
-    router.push('/login')
-    return
-  }
+  loadRecentBalances()
+})
 
-  // Cargar datos del usuario
-  const rawCurrent = sessionStorage.getItem('currentUser')
-  if (rawCurrent) {
-    try {
-      const obj = JSON.parse(rawCurrent)
-      currentUser.value = obj.name || obj.email || 'Usuario'
-      currentUserRole.value = obj.isAdmin ? 'Administrador' : 'Usuario'
-    } catch (e) {
-      console.error('Error al cargar usuario', e)
-    }
-  }
-
-  // Cargar balances recientes (si existen en localStorage temporal)
+function loadRecentBalances() {
   try {
     const raw = localStorage.getItem('recentBalances')
     if (raw) {
       recentBalances.value = JSON.parse(raw)
     }
-  } catch (e) {
-    console.error('Error loading recent balances', e)
+  } catch (error) {
+    console.error('Error cargando balances recientes:', error)
   }
-})
+}
+
+function editBalance(id: string) {
+  router.push({ path: '/balance', query: { id } })
+}
 </script>

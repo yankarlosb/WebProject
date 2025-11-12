@@ -62,27 +62,31 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import AuthService from '../services/auth'
+import { useAuthStore } from '../stores/auth'
+import { useUIStore } from '../stores/ui'
 
 const username = ref<string>('')
 const password = ref<string>('')
 const router = useRouter()
+const authStore = useAuthStore()
+const uiStore = useUIStore()
 
 const handleSubmit = async () => {
   if (!username.value.trim() || !password.value.trim()) {
-    alert('Por favor ingrese usuario y contraseña.')
+    uiStore.showWarning('Por favor ingrese usuario y contraseña')
     return
   }
 
-  // Usar el método centralizado del AuthService
-  const result = await AuthService.login(username.value.trim(), password.value.trim())
+  // Usar el authStore para login
+  const result = await authStore.login(username.value.trim(), password.value.trim())
   
   if (result.success) {
-    // Login exitoso, redirigir al dashboard
+    // Login exitoso, mostrar notificación y redirigir
+    uiStore.showSuccess('¡Bienvenido! Inicio de sesión exitoso')
     router.push('/dashboard')
   } else {
-    // Mostrar mensaje de error
-    alert(result.message || 'Error al iniciar sesión')
+    // Mostrar mensaje de error con notificación
+    uiStore.showError(result.message || 'Error al iniciar sesión')
   }
 }
 </script>

@@ -9,7 +9,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  isAdmin: boolean;
+  role: string; // "admin" | "user" | "leader" | "subjectLeader"
 }
 
 export interface AuthResponse {
@@ -37,15 +37,6 @@ export class AuthService {
       });
 
       const data = await response.json();
-      
-      if (data.success && data.user) {
-        const user: User = this.normalizeUser(data.user);
-        
-        // Guardar datos locales
-        this.setLocalAuth(user);
-        
-        return { success: true, user };
-      }
       
       return { 
         success: false, 
@@ -152,11 +143,19 @@ export class AuthService {
    * Normaliza datos del usuario desde el backend
    */
   private static normalizeUser(userData: any): User {
+    // Parsear el ID si viene como string
+    let userId: number;
+    if (typeof userData.id === 'string') {
+      userId = parseInt(userData.id, 10);
+    } else {
+      userId = userData.id;
+    }
+
     return {
-      id: userData.id,
-      name: userData.name || userData.username,
-      email: userData.email,
-      isAdmin: userData.isAdmin || userData.is_admin || false
+      id: userId,
+      name: userData.name || userData.username || 'Usuario',
+      email: userData.email || '',
+      role: userData.role || 'user' // Por defecto "user" si no viene
     };
   }
 

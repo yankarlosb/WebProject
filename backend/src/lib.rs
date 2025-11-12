@@ -26,6 +26,7 @@ pub mod routes;
 pub use database::{asignaturas, usuarios};
 pub use utils::cors::CORS;
 
+
 // Importar las rutas para usar en el macro routes!
 use routes::login::{
     login_json,
@@ -34,7 +35,13 @@ use routes::login::{
     verify_auth,
     unauthorized
 };
-use routes::manager::create_user;
+
+use routes::manager::{
+    create_user,
+    delete_user,
+    list_users,
+    modify_user
+};
 
 pub struct AppState {
     pub db: DatabaseConnection,
@@ -55,6 +62,9 @@ pub async fn run() -> Rocket<Build> {
         .mount("/api", routes![
             login_json,
             create_user,
+            delete_user,
+            list_users,
+            modify_user,
             logout,
             verify_auth,
             balance_page,

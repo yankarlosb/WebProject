@@ -1,6 +1,6 @@
-use sea_orm::{DatabaseConnection, Database};
+use sea_orm::{Database, DatabaseConnection};
 
-use crate::usuarios;
+use crate::usuarios::{self, ActiveModel};
 
 pub async fn establish_connection() -> DatabaseConnection {
     dotenvy::dotenv().ok();
@@ -15,10 +15,16 @@ pub async fn establish_connection() -> DatabaseConnection {
     db
 }
 
-pub async fn create_user(db: &DatabaseConnection, name: &str, email: &str, password: &str, role: &str) -> Result<(), sea_orm::DbErr> {
+pub async fn create_user(
+    db: &DatabaseConnection,
+    name: &str,
+    email: &str,
+    password: &str,
+    role: &str,
+) -> Result<(), sea_orm::DbErr> {
+    use bcrypt::{DEFAULT_COST, hash};
     use sea_orm::ActiveModelTrait;
     use sea_orm::Set;
-    use bcrypt::{hash, DEFAULT_COST};
 
     let hashed_password = hash(password, DEFAULT_COST).expect("Error al hashear la contraseña");
 
@@ -31,5 +37,48 @@ pub async fn create_user(db: &DatabaseConnection, name: &str, email: &str, passw
     };
 
     new_user.insert(db).await?;
+    Ok(())
+}
+
+pub async fn delete_user(db: &DatabaseConnection, user_id: i32) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::ColumnTrait;
+    use sea_orm::EntityTrait;
+    use sea_orm::QueryFilter;
+
+    usuarios::Entity::delete_many()
+        .filter(usuarios::Column::Id.eq(user_id))
+        .exec(db)
+        .await?;
+    Ok(())
+}
+
+pub async fn list_users(db: &DatabaseConnection) -> Result<Vec<usuarios::Model>, sea_orm::DbErr> {
+    use sea_orm::EntityTrait;
+
+    let users = usuarios::Entity::find()
+        .all(db)
+        .await?
+        .iter()
+        .filter(|user| user.role != Some("admin".to_string()))
+        .cloned()
+        .collect::<Vec<_>>();
+    Ok(users)
+}
+
+pub async fn modify_user(db: &DatabaseConnection, user_id: i32, user_data: &usuarios::Model) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::ActiveModelTrait;
+    use sea_orm::EntityTrait;
+    use sea_orm::Set;
+
+    let mut modified_user: ActiveModel = usuarios::Entity::find_by_id(user_id).one(db).await?.expect("No se pudo obtener el usuario").into();
+
+    modified_user = usuarios::ActiveModel {
+        name: Set(user_data.name.clone()),
+        email: Set(user_data.email.clone()),
+        role: Set(user_data.role.clone()),
+        ..modified_user
+    };
+
+    modified_user.update(db).await?;
     Ok(())
 }

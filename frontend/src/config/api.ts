@@ -16,7 +16,10 @@ export const API_CONFIG = {
     BALANCE: '/api/balance',
     ASIGNATURAS: '/api/asignaturas',
     USUARIOS: '/api/usuarios',
-    ADMINISTRAR: '/api/manager',
+    MODIFICAR: '/api/modify_user',
+    ELIMINAR: '/api/delete_user',
+    LISTAR: '/api/list_users',
+    CREAR: '/api/create_user',
   }
 };
 

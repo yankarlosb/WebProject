@@ -24,7 +24,7 @@ pub struct Claims {
 
 impl Claims {
     /// Crea un nuevo claim con una expiración de 24 horas
-    pub fn new(user_id: i32, email: String, name: String, role: String) -> Self {
+    pub fn new(user_id: i32, name: String, email: String, role: String) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
@@ -32,8 +32,8 @@ impl Claims {
 
         Claims {
             sub: user_id.to_string(),
-            email,
             name,
+            email,
             role,
             iat: now,
             exp: now + 86400, // 24 horas = 86400 segundos
@@ -129,13 +129,85 @@ impl<'r> FromRequest<'r> for User {
         };
 
         // Luego verificamos que tenga un rol válido
-        if auth_user.0.role == "admin"
-            || auth_user.0.role == "subjectLeader"
+        if auth_user.0.role == "subjectLeader"
             || auth_user.0.role == "user"
-            || auth_user.0.role == "leader"
-        {
+            || auth_user.0.role == "admin" 
+            || auth_user.0.role == "leader"{
             Outcome::Success(User(auth_user.0))
         } else {
+            Outcome::Error((Status::Forbidden, ()))
+        }
+    }
+}
+
+/// Guardián que valida que el usuario sea administrador
+pub struct AdminUser(pub Claims);
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for AdminUser {
+    type Error = ();
+
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        // Primero verificamos que esté autenticado
+        let auth_user = match request.guard::<AuthenticatedUser>().await {
+            Outcome::Success(user) => user,
+            Outcome::Error(e) => return Outcome::Error(e),
+            Outcome::Forward(f) => return Outcome::Forward(f),
+        };
+
+        // Verificar que el rol sea "admin"
+        if auth_user.0.role == "admin" {
+            Outcome::Success(AdminUser(auth_user.0))
+        } else {
+            // No es admin, denegar acceso
+            Outcome::Error((Status::Forbidden, ()))
+        }
+    }
+}
+
+pub struct LeaderUser(pub Claims);
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for LeaderUser {
+    type Error = ();
+
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        // Primero verificamos que esté autenticado
+        let auth_user = match request.guard::<AuthenticatedUser>().await {
+            Outcome::Success(user) => user,
+            Outcome::Error(e) => return Outcome::Error(e),
+            Outcome::Forward(f) => return Outcome::Forward(f),
+        };
+
+        // Verificar que el rol sea "leader"
+        if auth_user.0.role == "leader" {
+            Outcome::Success(LeaderUser(auth_user.0))
+        } else {
+            // No es leader, denegar acceso
+            Outcome::Error((Status::Forbidden, ()))
+        }
+    }
+}
+
+pub struct SubjectLeaderUser(pub Claims);
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for SubjectLeaderUser {
+    type Error = ();
+
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        // Primero verificamos que esté autenticado
+        let auth_user = match request.guard::<AuthenticatedUser>().await {
+            Outcome::Success(user) => user,
+            Outcome::Error(e) => return Outcome::Error(e),
+            Outcome::Forward(f) => return Outcome::Forward(f),
+        };
+
+        // Verificar que el rol sea "subjectLeader"
+        if auth_user.0.role == "subjectLeader" {
+            Outcome::Success(SubjectLeaderUser(auth_user.0))
+        } else {
+            // No es subjectLeader, denegar acceso
             Outcome::Error((Status::Forbidden, ()))
         }
     }
