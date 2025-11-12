@@ -1,8 +1,3 @@
-/**
- * Servicio de autenticación - Versión Mejorada
- * Maneja la verificación de autenticación con el backend JWT
- */
-
 import { API_CONFIG } from '../config/api';
 
 export interface User {
@@ -19,7 +14,6 @@ export interface AuthResponse {
 }
 
 export class AuthService {
-  private static readonly AUTH_KEY = 'loggedIn';
   private static readonly USER_KEY = 'currentUser';
 
   /**
@@ -69,11 +63,6 @@ export class AuthService {
    * Verifica autenticación y sincroniza datos del usuario
    */
   static async checkAuth(): Promise<{ isAuthenticated: boolean; user?: User }> {
-    // Primero verificar localmente para UX rápida
-    if (!this.isLocallyAuthenticated()) {
-      return { isAuthenticated: false };
-    }
-
     try {
       const response = await fetch(API_CONFIG.ENDPOINTS.VERIFY, {
         method: 'GET',
@@ -114,10 +103,8 @@ export class AuthService {
     } catch (error) {
       console.error('Error verificando autenticación:', error);
       
-      // En caso de error de red, mantener estado local para mejor UX
-      // pero marcar como posiblemente desconectado
       return { 
-        isAuthenticated: this.isLocallyAuthenticated(),
+        isAuthenticated: false,
         user: this.getCurrentUser() || undefined
       };
     }
@@ -183,10 +170,6 @@ export class AuthService {
 
   // --- Métodos de persistencia local ---
 
-  static isLocallyAuthenticated(): boolean {
-    return localStorage.getItem(this.AUTH_KEY) === 'true';
-  }
-
   static getCurrentUser(): User | null {
     const userStr = localStorage.getItem(this.USER_KEY);
     if (!userStr) return null;
@@ -199,12 +182,10 @@ export class AuthService {
   }
 
   private static clearLocalAuth(): void {
-    localStorage.removeItem(this.AUTH_KEY);
     localStorage.removeItem(this.USER_KEY);
   }
 
   private static setLocalAuth(user: User): void {
-    localStorage.setItem(this.AUTH_KEY, 'true');
     localStorage.setItem(this.USER_KEY, JSON.stringify(user));
   }
 

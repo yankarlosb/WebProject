@@ -16,8 +16,6 @@ static JWT_SECRET: Lazy<String> = Lazy::new(|| {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
     pub sub: String,    // Subject (user ID)
-    pub name: String,   // Nombre del usuario
-    pub email: String,  // Email del usuario
     pub role: String,   // Rol del usuario
     pub ip: String,     // IP del cliente
     pub exp: usize,     // Expiration time (timestamp)
@@ -26,7 +24,7 @@ pub struct Claims {
 
 impl Claims {
     /// Crea un nuevo claim con una expiración de 24 horas
-    pub fn new(user_id: i32, name: String, email: String, role: String, remote_addr: Option<SocketAddr>) -> Self {
+    pub fn new(user_id: i32, role: String, remote_addr: Option<SocketAddr>) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
@@ -38,8 +36,6 @@ impl Claims {
 
         Claims {
             sub: user_id.to_string(),
-            name,
-            email,
             role,
             ip: client_ip,
             iat: now,
@@ -212,30 +208,23 @@ impl<'r> FromRequest<'r> for SubjectLeaderUser {
 pub struct LoginResponse {
     pub success: bool,
     pub message: String,
-    pub token: Option<String>,
     pub user: Option<UserInfo>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct UserInfo {
-    pub id: String,
+    pub id: i32,
     pub name: String,
     pub email: String,
     pub role: String,
 }
 
 impl LoginResponse {
-    pub fn success(token: String, claims: &Claims) -> Self {
+    pub fn success(message: String, user: UserInfo) -> Self {
         LoginResponse {
             success: true,
-            message: "Login exitoso".to_string(),
-            token: Some(token),
-            user: Some(UserInfo {
-                id: claims.sub.clone(),
-                name: claims.name.clone(),
-                email: claims.email.clone(),
-                role: claims.role.clone(),
-            }),
+            message,
+            user: Some(user),
         }
     }
 
@@ -243,7 +232,6 @@ impl LoginResponse {
         LoginResponse {
             success: false,
             message,
-            token: None,
             user: None,
         }
     }

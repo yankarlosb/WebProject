@@ -1,4 +1,4 @@
-use crate::utils::jwt::{AuthenticatedUser, Claims, LoginResponse, create_jwt};
+use crate::utils::jwt::{AuthenticatedUser, Claims, LoginResponse, UserInfo, create_jwt};
 use crate::*;
 use rocket::http::{Cookie, CookieJar, SameSite};
 use rocket::response::content;
@@ -51,13 +51,9 @@ pub async fn login_json(
         return Json(LoginResponse::error("Contraseña incorrecta".to_string()));
     }
 
-    println!("IP del usuario: {:?}", remote_addr);
-
     // Crear los claims del JWT
     let claims = Claims::new(
         entity.id,
-        entity.name.clone(),
-        entity.email.clone(),
         entity.role.clone().unwrap_or_default(),
         remote_addr,
     );
@@ -74,7 +70,18 @@ pub async fn login_json(
             cookie.set_max_age(Duration::hours(24));
             cookies.add(cookie);
 
-            Json(LoginResponse::success("Login exitoso".to_string(), &claims))
+            // Crear información del usuario para la respuesta
+            let user_info = UserInfo {
+                id: entity.id,
+                name: entity.name.clone(),
+                email: entity.email.clone(),
+                role: entity.role.clone().unwrap_or_else(|| "user".to_string()),
+            };
+
+            Json(LoginResponse::success(
+                "Login exitoso".to_string(),
+                user_info,
+            ))
         }
         Err(_) => Json(LoginResponse::error(
             "Error al generar el token".to_string(),
