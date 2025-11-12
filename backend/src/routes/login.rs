@@ -13,12 +13,6 @@ pub struct LoginJson {
     password: String,
 }
 
-#[derive(Serialize)]
-pub struct ApiResponse {
-    pub message: String,
-    pub alert: String,
-}
-
 // Esta ruta maneja el login desde Vue.js
 #[post("/login", format = "json", data = "<credentials>")]
 pub async fn login_json(

@@ -21,6 +21,7 @@ pub mod database;
 pub use database::prelude::*;
 pub mod utils;
 pub mod routes;
+pub mod types;
 
 // Re-exportar los módulos específicos de entidades para facilitar el acceso
 pub use database::{asignaturas, usuarios};
