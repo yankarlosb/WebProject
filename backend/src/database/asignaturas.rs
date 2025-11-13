@@ -8,10 +8,12 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    #[sea_orm(unique)]
-    pub leader_id: Option<i32>,
+    pub leader_id: i32,
+    #[sea_orm(column_type = "Text")]
     pub name: String,
+    #[sea_orm(column_type = "Text")]
     pub year: String,
+    #[sea_orm(column_type = "Text")]
     pub semester: String,
     pub c: Option<i32>,
     pub cp: Option<i32>,
@@ -26,6 +28,7 @@ pub struct Model {
     pub hours: i32,
     pub date_start: DateTime,
     pub date_end: DateTime,
+    pub weeks: Option<i32>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

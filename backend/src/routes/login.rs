@@ -45,9 +45,12 @@ pub async fn login_json(
         return Json(LoginResponse::error("Contraseña incorrecta".to_string()));
     }
 
-    // Crear los claims del JWT
+    // Crear los claims del JWT con toda la información del usuario
     let claims = Claims::new(
         entity.id,
+        entity.user_name.clone(),
+        entity.name.clone(),
+        entity.email.clone(),
         entity.role.clone().unwrap_or_default(),
         remote_addr,
     );
@@ -57,7 +60,7 @@ pub async fn login_json(
         Ok(token) => {
             // Establecer cookie HttpOnly con el token (seguridad adicional)
             let mut cookie = Cookie::new("jwt_token", token.clone());
-            cookie.set_http_only(false);
+            cookie.set_http_only(true);
             cookie.set_same_site(SameSite::Lax);
             cookie.set_secure(true);
             cookie.set_path("/");
@@ -67,6 +70,7 @@ pub async fn login_json(
             // Crear información del usuario para la respuesta
             let user_info = UserInfo {
                 id: entity.id,
+                user_name: entity.user_name.clone(),
                 name: entity.name.clone(),
                 email: entity.email.clone(),
                 role: entity.role.clone().unwrap_or_else(|| "user".to_string()),
@@ -106,13 +110,24 @@ pub fn logout(cookies: &CookieJar<'_>) -> Redirect {
 pub struct VerifyResponse {
     success: bool,
     authenticated: bool,
+    user: Option<UserInfo>,
 }
 
 #[get("/verify")]
-pub fn verify_auth(_user: AuthenticatedUser) -> Json<VerifyResponse> {
+pub fn verify_auth(user: AuthenticatedUser) -> Json<VerifyResponse> {
+    // Extraer los datos del usuario desde los claims del JWT
+    let user_info = UserInfo {
+        id: user.0.sub.parse().unwrap_or(0),
+        user_name: user.0.user_name.clone(),
+        name: user.0.name.clone(),
+        email: user.0.email.clone(),
+        role: user.0.role.clone(),
+    };
+
     Json(VerifyResponse {
         success: true,
         authenticated: true,
+        user: Some(user_info),
     })
 }
 

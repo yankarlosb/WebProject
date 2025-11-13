@@ -89,7 +89,7 @@ export const useAuthStore = defineStore('auth', () => {
   function updateUser(updates: Partial<User>) {
     if (user.value) {
       user.value = { ...user.value, ...updates }
-      AuthService.updateLocalUser(updates)
+      // Ya no guardamos en localStorage - solo en memoria
     }
   }
 
@@ -98,17 +98,8 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated.value = false
   }
 
-  // Inicializar desde localStorage al cargar el store
-  function initialize() {
-    const localUser = AuthService.getCurrentUser()
-    if (localUser) {
-      user.value = localUser
-      isAuthenticated.value = true
-    }
-  }
-
-  // Auto-inicializar
-  initialize()
+  // El store ahora empieza vacío - no lee de localStorage
+  // Los datos se cargan cuando se llama checkAuth() desde el router guard
 
   return {
     // State
@@ -132,6 +123,5 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     updateUser,
     clearAuth,
-    initialize,
   }
 })

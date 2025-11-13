@@ -2,7 +2,7 @@
 
 Sistema web para la gestión y cálculo del balance de carga docente en la Facultad de Ciberseguridad. Esta aplicación moderniza y automatiza el proceso de distribución de horas lectivas entre asignaturas, facilitando la planificación académica.
 
-## 🎯 Características Principales
+## Características Principales
 
 - **Dashboard Intuitivo**: Vista general con estadísticas de años académicos, asignaturas y balances guardados
 - **Cálculo Automático**: Distribución inteligente de horas entre diferentes tipos de actividades docentes (C, CP, S, PL, TE, T, PP, EC, TC, EF)
@@ -12,7 +12,7 @@ Sistema web para la gestión y cálculo del balance de carga docente en la Facul
 - **Interfaz Moderna**: Diseño responsive con Vue 3 y TailwindCSS 4
 - **Gestión de Usuarios**: Panel de administración para crear y gestionar usuarios del sistema
 
-## 🚀 Tecnologías Utilizadas
+## Tecnologías Utilizadas
 
 ### Backend
 - **Rust** - Lenguaje de programación principal
@@ -31,14 +31,14 @@ Sistema web para la gestión y cálculo del balance de carga docente en la Facul
 - **Vue Router** - Navegación SPA
 - **TailwindCSS 4** - Framework CSS utility-first
 
-## 📋 Requisitos Previos
+## Requisitos Previos
 
 - **Rust** (1.91.0 o superior)
 - **Node.js** (18.x o superior)
 - **PostgreSQL** (12 o superior)
 - **npm** o **yarn**
 
-## 🛠️ Instalación y Configuración
+## Instalación y Configuración
 
 ### 1. Clonar el Repositorio
 
@@ -99,31 +99,31 @@ npm run build
 
 El frontend estará disponible en `http://localhost:5173` (desarrollo)
 
-## 📊 Esquema de Base de Datos
+## Esquema de Base de Datos
 
 ### Tabla `usuarios`
 ```sql
 - id (SERIAL PRIMARY KEY)
-- name (VARCHAR)
-- email (VARCHAR UNIQUE)
-- token (VARCHAR) -- Contraseña hasheada
+- name (TEXT)
+- email (TEXT UNIQUE)
+- token (TEXT) -- Contraseña hasheada
 - created_at (TIMESTAMP)
-- role (VARCHAR) -- admin, leader, subjectLeader, user
+- role (TEXT) -- admin, leader, subjectLeader, user
 ```
 
 ### Tabla `asignaturas`
 ```sql
 - id (SERIAL PRIMARY KEY)
 - leader_id (INTEGER FK → usuarios.id)
-- name (VARCHAR)
-- year (VARCHAR)
-- semester (VARCHAR)
+- name (TEXT)
+- year (TEXT)
+- semester (TEXT)
 - C, CP, S, PL, TE, T, PP, EC, TC, EF (INTEGER) -- Tipos de horas
 - hours (INTEGER) -- Total de horas
 - date_start, date_end (TIMESTAMP)
 ```
 
-## 🔐 Sistema de Autenticación
+## Sistema de Autenticación
 
 ### Roles Disponibles
 - **admin**: Acceso completo al sistema, gestión de usuarios
@@ -138,7 +138,7 @@ El frontend estará disponible en `http://localhost:5173` (desarrollo)
 4. Todas las rutas protegidas validan el JWT automáticamente
 5. Frontend mantiene estado de sesión en Pinia store
 
-## 🌐 API Endpoints
+## API Endpoints
 
 ### Autenticación
 - `POST /api/login` - Iniciar sesión
@@ -151,7 +151,7 @@ El frontend estará disponible en `http://localhost:5173` (desarrollo)
 - `POST /api/modify_user/:id` - Modificar usuario
 - `POST /api/delete_user/:id` - Eliminar usuario
 
-## 🏗️ Arquitectura del Proyecto
+## Arquitectura del Proyecto
 
 ```
 WebProject/
@@ -181,7 +181,7 @@ WebProject/
 └── README.md
 ```
 
-## 🧪 Desarrollo
+## Desarrollo
 
 ### Ejecutar Ambos Servicios
 
@@ -213,7 +213,7 @@ npm run build
 
 Los archivos compilados del frontend estarán en `frontend/dist/` y el backend los servirá automáticamente en producción.
 
-## 📝 Convenciones de Código
+## Convenciones de Código
 
 ### Backend (Rust)
 - Request guards para proteger rutas (`AuthenticatedUser`, `AdminUser`, etc.)
@@ -244,14 +244,8 @@ Este proyecto está en desarrollo activo. Para contribuir:
 4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
 5. Abre un Pull Request
 
-## 📄 Licencia
+## Licencia
 
 Este proyecto es de código abierto y está disponible bajo la licencia MIT.
 
-## 👥 Autores
-
-- **Carlos Yanqui** - [yankarlosb](https://github.com/yankarlosb)
-
-## 📞 Soporte
-
-Para reportar bugs o solicitar nuevas características, por favor abre un issue en el repositorio de GitHub.
+## 👥 Autoresd

@@ -15,16 +15,26 @@ static JWT_SECRET: Lazy<String> = Lazy::new(|| {
 // Estructura de los claims del JWT
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
-    pub sub: String,    // Subject (user ID)
-    pub role: String,   // Rol del usuario
-    pub ip: String,     // IP del cliente
-    pub exp: usize,     // Expiration time (timestamp)
-    pub iat: usize,     // Issued at (timestamp)
+    pub sub: String,       // Subject (user ID)
+    pub user_name: String, // Username para login
+    pub name: String,      // Nombre completo
+    pub email: String,     // Email del usuario
+    pub role: String,      // Rol del usuario
+    pub ip: String,        // IP del cliente
+    pub exp: usize,        // Expiration time (timestamp)
+    pub iat: usize,        // Issued at (timestamp)
 }
 
 impl Claims {
     /// Crea un nuevo claim con una expiración de 24 horas
-    pub fn new(user_id: i32, role: String, remote_addr: Option<SocketAddr>) -> Self {
+    pub fn new(
+        user_id: i32, 
+        user_name: String,
+        name: String,
+        email: String,
+        role: String, 
+        remote_addr: Option<SocketAddr>
+    ) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
@@ -36,6 +46,9 @@ impl Claims {
 
         Claims {
             sub: user_id.to_string(),
+            user_name,
+            name,
+            email,
             role,
             ip: client_ip,
             iat: now,
@@ -90,7 +103,6 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         let cookies = request.cookies();
         
-        // SOLO obtener de cookie HttpOnly
         let token = cookies.get("jwt_token")
             .map(|c| c.value().to_string());
 
@@ -208,6 +220,7 @@ pub struct LoginResponse {
 #[derive(Serialize, Deserialize)]
 pub struct UserInfo {
     pub id: i32,
+    pub user_name: String,
     pub name: String,
     pub email: String,
     pub role: String,

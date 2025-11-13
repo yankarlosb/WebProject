@@ -70,11 +70,6 @@
                 </svg>
                 <h3 class="mt-2 text-sm font-medium text-gray-900">No hay asignaturas</h3>
                 <p class="mt-1 text-sm text-gray-500">Agrega asignaturas para comenzar a llenar el balance</p>
-                <div class="mt-6">
-                  <AppButton variant="primary" @click="openAddSubjectModal">
-                    Agregar Primera Asignatura
-                  </AppButton>
-                </div>
               </div>
 
               <!-- Tablas de balance -->
@@ -175,27 +170,7 @@
               </div>
             </div>
           </div>
-
-          <!-- Input personalizado -->
-          <AppInput
-            v-model="customSubjectName"
-            label="Nombre personalizado"
-            placeholder="Ingresa el nombre de la asignatura"
-          />
         </div>
-
-        <template #footer>
-          <AppButton variant="ghost" @click="closeAddSubjectModal">
-            Cancelar
-          </AppButton>
-          <AppButton
-            variant="primary"
-            @click="addCustomSubject"
-            :disabled="!customSubjectName.trim()"
-          >
-            Agregar
-          </AppButton>
-        </template>
       </AppModal>
     </div>
   </AppLayout>
@@ -207,7 +182,6 @@ import { useBalanceForm } from '../composables/useBalanceForm'
 import AppLayout from '../components/AppLayout.vue'
 import AppCard from '../components/AppCard.vue'
 import AppButton from '../components/AppButton.vue'
-import AppInput from '../components/AppInput.vue'
 import AppModal from '../components/AppModal.vue'
 import AppTabs from '../components/AppTabs.vue'
 import BalanceConfigCard from '../components/BalanceConfigCard.vue'
@@ -220,7 +194,6 @@ const {
   activeTab,
   isSaving,
   showAddSubjectModal,
-  customSubjectName,
   tabs,
   balanceStore,
   asignaturasStore,
@@ -230,9 +203,7 @@ const {
   calculateBalance,
   saveBalance,
   openAddSubjectModal,
-  closeAddSubjectModal,
   addExistingSubject,
-  addCustomSubject,
   confirmDeleteSubject,
   setupUnsavedWarning,
 } = useBalanceForm()

@@ -15,19 +15,6 @@
             Sistema de Balance de Carga Docente - Facultad de Ciberseguridad
           </p>
         </div>
-        
-        <AppButton
-          variant="primary"
-          size="lg"
-          @click="router.push('/balance')"
-        >
-          <template #icon>
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-          </template>
-          Nuevo Balance
-        </AppButton>
       </div>
     </AppCard>
 
@@ -59,67 +46,13 @@
       />
     </div>
 
-    <!-- Accesos Rápidos -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-      <QuickAccessCard
-        title="Balance de Carga"
-        description="Crear o editar balance docente"
-        icon="table"
-        color="blue"
-        @click="router.push('/balance')"
-      />
-      <QuickAccessCard
-        title="Asignaturas"
-        description="Gestionar asignaturas del sistema"
-        icon="book"
-        color="green"
-        @click="router.push('/asignaturas')"
-      />
-      <QuickAccessCard
-        title="Mi Perfil"
-        description="Editar información personal"
-        icon="user"
-        color="purple"
-        @click="router.push('/perfil')"
-      />
-      <QuickAccessCard
-        v-if="authStore.isAdmin"
-        title="Configuración"
-        description="Administrar usuarios y sistema"
-        icon="settings"
-        color="gray"
-        @click="router.push('/configuracion')"
-      />
-    </div>
-
     <!-- Balances Recientes -->
     <AppCard title="Balances Recientes">
-      <template #actions>
-        <AppButton
-          variant="ghost"
-          size="sm"
-          @click="router.push('/balance')"
-        >
-          Ver todos
-        </AppButton>
-      </template>
-
       <div v-if="recentBalances.length === 0" class="text-center py-12">
         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         <h3 class="mt-2 text-sm font-medium text-gray-900">No hay balances</h3>
-        <p class="mt-1 text-sm text-gray-500">Comienza creando tu primer balance de carga.</p>
-        <div class="mt-6">
-          <AppButton variant="primary" @click="router.push('/balance')">
-            <template #icon>
-              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-              </svg>
-            </template>
-            Crear Balance
-          </AppButton>
-        </div>
       </div>
 
       <div v-else class="overflow-x-auto">
@@ -160,6 +93,13 @@
                   <AppButton
                     variant="primary"
                     size="sm"
+                    @click="viewBalance(balance.id)"
+                  >
+                    Ver
+                  </AppButton>
+                  <AppButton
+                    variant="primary"
+                    size="sm"
                     @click="editBalance(balance.id)"
                   >
                     Editar
@@ -190,7 +130,6 @@ import AppLayout from '../components/AppLayout.vue'
 import AppCard from '../components/AppCard.vue'
 import AppButton from '../components/AppButton.vue'
 import StatsCard from '../components/StatsCard.vue'
-import QuickAccessCard from '../components/QuickAccessCard.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -213,7 +152,9 @@ function loadRecentBalances() {
   try {
     const raw = localStorage.getItem('recentBalances')
     if (raw) {
-      recentBalances.value = JSON.parse(raw)
+      const allBalances = JSON.parse(raw)
+      // Mostrar solo los últimos 5 balances
+      recentBalances.value = allBalances.slice(0, 5)
     }
   } catch (error) {
     console.error('Error cargando balances recientes:', error)
@@ -222,5 +163,8 @@ function loadRecentBalances() {
 
 function editBalance(id: string) {
   router.push({ path: '/balance', query: { id } })
+}
+function viewBalance(id: string) {
+  router.push({ path: '/balance/view', query: { id } })
 }
 </script>

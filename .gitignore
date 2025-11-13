@@ -50,3 +50,6 @@ temp/
 
 # Otros
 documents/
+*.sql*
+*.sh
+*.fish

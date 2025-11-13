@@ -1,158 +1,141 @@
 # Copilot Instructions: Balance de Carga Docente
 
-## Project Architecture
+Sistema web para gestión de carga docente en Facultad de Ciberseguridad - Rust Rocket + Vue 3 + PostgreSQL monorepo.
 
-**Stack**: Rust Rocket backend + Vue 3 + TypeScript frontend with PostgreSQL
-- **Backend**: Rocket 0.5.1 + SeaORM 1.1.17 (PostgreSQL ORM) on port 8000
-- **Frontend**: Vue 3 + Vite + Pinia + TailwindCSS 4 on port 5173 (dev)
-- **Database**: PostgreSQL with `usuarios` and `asignaturas` tables
+## Architecture Overview
 
-### Key Architectural Patterns
+**Stack**: Rust backend (Rocket 0.5.1 + SeaORM 1.1.17) + Vue 3/TypeScript frontend + PostgreSQL
+- Backend: Port 8000, serves API (`/api/*`) and static files in production
+- Frontend: Port 5173 (dev), Vite proxies `/api/*` to backend
+- Auth: HttpOnly JWT cookies with IP validation (24h expiration)
+- State: Pinia stores (`auth`, `balance`, `asignaturas`, `users`)
 
-**Monorepo Structure**: Backend serves frontend static files in production. In dev, Vite proxies `/api/*` to `localhost:8000`.
+**Data Flow Pattern**: Frontend Pinia store → Service layer (`services/*.ts`) → Backend API (`routes/*.rs`) → SeaORM → PostgreSQL
 
-**Authentication Flow**: HttpOnly JWT cookies (not localStorage tokens)
-- Backend sets `jwt_token` cookie (HttpOnly, SameSite=Lax, Secure)
-- Frontend stores minimal auth state (`loggedIn`, `currentUser`) for UX
-- All protected routes verified via `AuthenticatedUser` request guard on backend
-- Router guard calls `AuthService.checkAuth()` which validates JWT server-side
+**Critical Design Decision**: Balance calculations stored **client-side only** (localStorage). `backend/src/database/balance.rs` entity exists but balances are NOT persisted to DB - only `asignaturas` and `usuarios` tables are active.
 
-**Database Pattern**: SeaORM entities auto-generated from schema
-- Entities in `backend/src/database/{usuarios,asignaturas}.rs`
-- Relations: `usuarios` has_one `asignaturas` via `jefe_id`
-- Regenerate entities: Use `sea-orm-cli` after schema changes
+## Database Schema
 
-## Critical Conventions
+**3 Tables** (`backend/schema.sql`):
+- `usuarios`: User accounts with bcrypt tokens. Fields: `id`, `user_name`, `name`, `email`, `token`, `role`, `created_at`
+- `asignaturas`: Subjects with hourly distribution (C, CP, S, PL, TE, T, PP, EC, TC, EF columns). Has `leader_id` FK to `usuarios.id`
+- `schema_migrations`: Version tracking (migrations directory mentioned but not implemented)
 
-### Backend (Rust/Rocket)
-
-**Request Guards**: Use `AuthenticatedUser(Claims)` or `User(Claims)` for protected routes
-```rust
-#[get("/balance")]
-pub async fn balance_page(_user: AuthenticatedUser) -> Option<NamedFile>
-```
-
-**JWT Management**: `utils/jwt.rs` handles creation/validation
-- Secret from `.env` `JWT_SECRET` (required)
-- 24h token expiration default
-- Cookie extraction in guard, NOT from Authorization header
-
-**CORS**: Fairing in `utils/cors.rs` allows `localhost:5173` with credentials
-- Update `Access-Control-Allow-Origin` for production
-
-**Database Connection**: `utils/db::establish_connection()` uses `DATABASE_URL` from `.env`
-- Connection pooled via Rocket's `State<AppState>`
-
-**Route Structure**:
-- `routes/login.rs`: Auth endpoints (`/api/login`, `/api/logout`, `/api/verify`)
-- `routes/manager.rs`: User management
-- All API routes mounted under `/api` prefix
-
-### Frontend (Vue 3/TypeScript)
-
-**Auth Service Pattern**: `services/auth.ts` is the single source of truth
-- `login()`: POST to `/api/login`, stores user in localStorage for UX
-- `checkAuth()`: GET to `/api/verify`, syncs with backend JWT state
-- `logout()`: POST to `/api/logout`, clears local state
-- Never manually manage cookies (backend-controlled)
-
-**Router Guards**: `router/index.ts` beforeEach hook
-1. Check `requiresAuth` meta
-2. Quick check `isLocallyAuthenticated()` (localStorage flag)
-3. Call `checkAuth()` to validate with backend
-4. Redirect to `/login` if JWT invalid
-
-**API Configuration**: `config/api.ts` centralizes endpoints
-- Dev: Empty `BASE_URL` (Vite proxy handles routing)
-- Prod: Backend serves from same origin
-
-**Composable Pattern**: Use `composables/useAuth.ts` in components
-```typescript
-const { user, isAuthenticated, logout } = useAuth()
-```
-
-**Component Structure**:
-- `views/`: Page components (Login, Dashboard, BalanceForm, Configuracion, Asignaturas)
-- `components/`: Reusable UI (BaseButton, Toast, ConfirmModal)
-- `.backup` files: Previous versions kept for reference (cleanup when stable)
-
-## Development Workflows
-
-### Starting Development
-```fish
-# Terminal 1: Backend (requires PostgreSQL running + .env with DATABASE_URL, JWT_SECRET)
-cd backend
-cargo run
-
-# Terminal 2: Frontend
-cd frontend
-npm run dev
-```
-
-**Environment Setup**: `.env` in project root (NOT in backend/)
-```env
-DATABASE_URL=postgres://user:pass@localhost/dbname
-JWT_SECRET=your-secret-key-here
-```
-
-### Database Management
-
-**Apply Schema**: Run `backend/schema.sql` manually on PostgreSQL
-```fish
-psql -U user -d dbname -f backend/schema.sql
-```
-
-**Regenerate Entities** (after schema changes):
+**SeaORM Entities**: Auto-generated in `backend/src/database/`, **never edit manually**. Regenerate after schema changes:
 ```fish
 cd backend
 sea-orm-cli generate entity -o src/database --with-serde both
 ```
 
-**Password Hashing**: Uses bcrypt cost 12
-- Test hash printed on backend startup: `admin token: $2b$12$...`
-- Insert users with pre-hashed passwords in SQL or via `/api/manager` endpoint
+## Authentication System
 
-### Building for Production
+**JWT Flow** (IP-bound tokens):
+1. `POST /api/login` validates credentials → generates JWT with user IP → sets HttpOnly cookie (`jwt_token`)
+2. All protected routes use request guards: `AuthenticatedUser`, `AdminUser`, `LeaderUser`, etc. (defined in `utils/jwt.rs`)
+3. Frontend stores user metadata in localStorage for UX **only** - cookie holds real auth state
+4. `GET /api/verify` validates JWT server-side (called by router guard on navigation)
 
-**Frontend**:
+**Role Hierarchy**: `admin` → `leader` → `subjectLeader` → `user`
+- Admin: User CRUD via `/api/create_user`, `/api/delete_user/<id>`, `/api/modify_user/<id>`, `/api/list_users`
+- Guard composition example: `AdminUser(Claims)` wraps `AuthenticatedUser` with role check
+
+**Security Notes**:
+- JWT secret from `.env` `JWT_SECRET` (required, loaded via `once_cell::sync::Lazy`)
+- Cookie flags: `http_only=false` (potential security issue), `same_site=Lax`, `secure=true`, `max_age=24h`
+- IP validation in `decode_jwt()` compares `claims.ip` with `request.remote()` address
+
+## Frontend Patterns
+
+**Router Guard Logic** (`router/index.ts`):
+1. Check route `meta.requiresAuth` and `meta.requiresAdmin`
+2. Fast-fail: Check `authStore.isAuthenticated` (localStorage flag)
+3. Backend verify: Call `authStore.checkAuth()` → hits `/api/verify`
+4. On 401: Clear store, redirect to `/login`
+
+**State Management** (Pinia stores):
+- `auth.ts`: User session, `checkAuth()`, `logout()`, `isAdmin` getter
+- `balance.ts`: Client-side balance CRUD in localStorage (keys: `balance_<id>`, `recentBalances`)
+- `users.ts`: Admin user management, mirrors backend `/api/list_users`
+
+**Component Naming**: 
+- Base components: `App*` prefix (`AppButton`, `AppModal`, `AppInput`)
+- Feature components: Domain-specific (`BalanceWeekTable`, `StatsCard`)
+
+**TypeScript Types**: Shared via `services/*.ts` (e.g., `AuthResponse`, `User` in `auth.ts`)
+
+## Development Workflows
+
+**Setup** (one-time):
 ```fish
-cd frontend
-npm run build  # Output: frontend/dist/
+# Root .env file (NOT in backend/)
+echo 'DATABASE_URL=postgres://user:pass@localhost/balance_carga' > .env
+echo 'JWT_SECRET=your-32-char-minimum-secret-key' >> .env
+
+# Create DB and apply schema
+createdb balance_carga
+psql -U postgres -d balance_carga -f backend/schema.sql
 ```
 
-**Backend**: Serves `frontend/dist/` when not in debug mode
+**Daily Dev** (2 terminals):
 ```fish
-cd backend
-cargo build --release
+# Terminal 1: Backend (prints bcrypt hash of "admin" on startup)
+cd backend && cargo run
+
+# Terminal 2: Frontend
+cd frontend && npm run dev
 ```
 
-**Deployment Note**: Ensure `JWT_SECRET` in production `.env` and update CORS origin
-
-## Common Pitfalls
-
-1. **Cookie Auth Confusion**: Frontend should NEVER read/write `jwt_token` cookie directly. Backend manages it.
-
-2. **Database Entity Modifications**: Don't manually edit `database/{usuarios,asignaturas}.rs` - they're auto-generated. Update `schema.sql` and regenerate.
-
-3. **CORS in Production**: Update `utils/cors.rs` to allow production domain, not `localhost:5173`.
-
-4. **Role Field**: User roles stored as `role` (String) in DB, validated in JWT guard. Values: `"admin"`, `"user"`, `"leader"`, `"subjectLeader"`.
-
-5. **API Proxy**: Vite dev server proxies `/api/*` to backend. In production, Rocket handles all routes (API + static files).
-
-6. **Environment Variables**: Backend expects `.env` in project root (parent of `backend/` and `frontend/`), NOT in `backend/.env`.
-
-## Testing User Scenarios
-
-**Create Test User** (via psql):
-```sql
--- Password will be 'admin'
-INSERT INTO usuarios (name, email, token, role) VALUES 
-  ('Admin User', 'admin@test.com', '$2b$12$hash_here', 'admin');
+**Production Build**:
+```fish
+cd frontend && npm run build              # → frontend/dist/
+cd ../backend && cargo build --release    # Serves dist/ when cfg!(not(debug_assertions))
 ```
 
-**Test Auth Flow**:
-1. Open `http://localhost:5173/login`
-2. Login creates cookie, redirects to `/dashboard`
-3. Refresh page - router guard validates JWT
-4. Logout clears cookie, redirects to `/login`
+**Add Test User** (password "admin"):
+```fish
+# Get hash from backend startup output or generate:
+cargo run  # Copy printed hash: admin token: $2b$12$...
+psql -d balance_carga -c "INSERT INTO usuarios (user_name, name, email, token, role) VALUES ('admin', 'Admin User', 'admin@test.com', '<hash_here>', 'admin');"
+```
+
+## API Conventions
+
+**Response Types** (`types.rs`):
+- `ApiResponse`: `{ message: String, alert: "success"|"error" }`
+- `ApiResponseWithData<T>`: Adds `data: Option<T>` field
+
+**Route Mounting** (`lib.rs`):
+- All API routes under `/api` prefix via `rocket::mount("/api", routes![...])`
+- Static files from `../frontend/src` (debug) or `../frontend/dist` (release)
+- Catch unauthorized: `#[catch(401)]` returns HTML alert + redirect
+
+**CORS Config** (`utils/cors.rs`): 
+- Dev: Allows `http://localhost:5173` with credentials
+- **Action Required**: Update `Access-Control-Allow-Origin` for production domain
+
+## Common Mistakes
+
+1. **`.env` Location**: Must be in project root (sibling to `backend/` and `frontend/`), NOT `backend/.env`
+2. **Balance Persistence**: Balances are localStorage-only - don't expect DB queries to return them
+3. **Entity Editing**: Regenerate entities after schema changes, don't modify `database/*.rs` files
+4. **Cookie Confusion**: Frontend NEVER reads/writes `jwt_token` cookie - only backend manages it via `CookieJar`
+5. **Fish Shell Syntax**: Use `echo` or `printf`, NOT bash heredocs (`<<EOF`)
+6. **User Table Column**: Uses `user_name` for login username, `name` for display name (easy typo)
+
+## Key Files Reference
+
+- **Backend Entry**: `backend/src/main.rs` (prints admin hash) → `lib.rs` (Rocket config)
+- **Auth Implementation**: `backend/src/utils/jwt.rs` (guards + claims)
+- **Schema Source**: `backend/schema.sql` (single source of truth)
+- **Frontend Router**: `frontend/src/router/index.ts` (auth guard logic)
+- **Auth Service**: `frontend/src/services/auth.ts` (login/logout/verify)
+- **Vite Proxy**: `frontend/vite.config.ts` (`/api` → `localhost:8000`)
+
+## Domain Logic
+
+**Balance Calculation** (frontend-only):
+- 79-cell grid per subject: 15 weeks × 4 days + consultation week + exams
+- Coefficient formula: `total * 1.2` (see `stores/balance.ts` `calculateAll()`)
+- Distribution types: C (Conference), CP (Practical Conference), S (Seminar), PL (Lab Practice), TE (Thesis), T (Tutorial), PP (Pre-Professional), EC/TC (Exam Committees), EF (Final Exam)
+
+**Subject Hours**: Integer columns per activity type (`asignaturas` table), total stored in `hours` column
