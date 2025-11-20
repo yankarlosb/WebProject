@@ -26,7 +26,7 @@ pub async fn login_json(
 
     // Buscar el usuario en la base de datos
     let entity = match usuarios::Entity::find()
-        .filter(usuarios::Column::Name.eq(username))
+        .filter(usuarios::Column::UserName.eq(username))
         .one(&db.db)
         .await
     {

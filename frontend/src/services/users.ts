@@ -7,6 +7,7 @@ import { API_CONFIG } from '../config/api'
 
 export interface User {
   id: number
+  user_name: string
   name: string
   email: string
   token: string 
@@ -15,6 +16,7 @@ export interface User {
 }
 
 export interface CreateUserRequest {
+  user_name: string
   name: string
   email: string
   password: string
@@ -23,6 +25,7 @@ export interface CreateUserRequest {
 
 export interface UpdateUserRequest {
   id: number
+  user_name: string
   name: string
   email: string
   token: string
@@ -45,157 +48,80 @@ interface BackendResponse {
 }
 
 export class UsersService {
-  private static readonly BASE_URL = `${API_CONFIG.BASE_URL}/api/`
+  private static readonly BASE_URL = `${API_CONFIG.BASE_URL}/api`
+
+  /**
+   * Helper genérico para peticiones HTTP
+   */
+  private static async request(
+    endpoint: string,
+    method: 'GET' | 'POST' = 'GET',
+    body?: any,
+    errorMessage: string = 'Error en la operación'
+  ): Promise<UsersResponse> {
+    try {
+      const options: RequestInit = {
+        method,
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+
+      if (body) {
+        options.body = JSON.stringify(body)
+      }
+
+      const response = await fetch(`${this.BASE_URL}${endpoint}`, options)
+      const data: BackendResponse = await response.json()
+
+      if (data.alert === 'success') {
+        return {
+          success: true,
+          message: data.message,
+          users: data.data || undefined,
+        }
+      } else {
+        return {
+          success: false,
+          message: data.message || errorMessage,
+        }
+      }
+    } catch (error) {
+      console.error(`Error en ${endpoint}:`, error)
+      return {
+        success: false,
+        message: `Error de conexión: ${errorMessage}`,
+      }
+    }
+  }
 
   /**
    * Obtener todos los usuarios
    */
   static async getAll(): Promise<UsersResponse> {
-    try {
-      const response = await fetch(`${this.BASE_URL}/list_users`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error('Error al obtener usuarios')
-      }
-
-      const data: BackendResponse = await response.json()
-      
-      if (data.alert === 'success') {
-        return { 
-          success: true, 
-          users: data.data || [],
-          message: data.message 
-        }
-      } else {
-        return {
-          success: false,
-          message: data.message || 'Error al cargar los usuarios',
-        }
-      }
-    } catch (error) {
-      console.error('Error en getAll:', error)
-      return {
-        success: false,
-        message: 'Error de conexión al cargar los usuarios',
-      }
-    }
+    return this.request('/list_users', 'GET', undefined, 'Error al cargar los usuarios')
   }
 
   /**
    * Crear un nuevo usuario
    */
   static async create(userData: CreateUserRequest): Promise<UsersResponse> {
-    try {
-      const response = await fetch(`${this.BASE_URL}/create_user`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData),
-      })
-
-      const data: BackendResponse = await response.json()
-
-      if (data.alert === 'success') {
-        return { 
-          success: true, 
-          message: data.message 
-        }
-      } else {
-        return {
-          success: false,
-          message: data.message || 'Error al crear usuario',
-        }
-      }
-    } catch (error) {
-      console.error('Error en create:', error)
-      return {
-        success: false,
-        message: 'Error de conexión al crear usuario',
-      }
-    }
+    return this.request('/create_user', 'POST', userData, 'Error al crear usuario')
   }
 
   /**
    * Actualizar un usuario existente
-   * Nota: El backend espera el modelo completo de usuario, no actualizaciones parciales
    */
-  static async update(
-    id: number,
-    userData: UpdateUserRequest
-  ): Promise<UsersResponse> {
-    try {
-      const response = await fetch(`${this.BASE_URL}/modify_user/${id}`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData),
-      })
-
-      const data: BackendResponse = await response.json()
-
-      if (data.alert === 'success') {
-        return { 
-          success: true, 
-          message: data.message 
-        }
-      } else {
-        return {
-          success: false,
-          message: data.message || 'Error al actualizar usuario',
-        }
-      }
-    } catch (error) {
-      console.error('Error en update:', error)
-      return {
-        success: false,
-        message: 'Error de conexión al actualizar usuario',
-      }
-    }
+  static async update(id: number, userData: UpdateUserRequest): Promise<UsersResponse> {
+    return this.request(`/modify_user/${id}`, 'POST', userData, 'Error al actualizar usuario')
   }
 
   /**
    * Eliminar un usuario
    */
   static async delete(id: number): Promise<UsersResponse> {
-    try {
-      const response = await fetch(`${this.BASE_URL}/delete_user/${id}`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      const data: BackendResponse = await response.json()
-
-      if (data.alert === 'success') {
-        return { 
-          success: true, 
-          message: data.message 
-        }
-      } else {
-        return {
-          success: false,
-          message: data.message || 'Error al eliminar usuario',
-        }
-      }
-    } catch (error) {
-      console.error('Error en delete:', error)
-      return {
-        success: false,
-        message: 'Error de conexión al eliminar usuario',
-      }
-    }
+    return this.request(`/delete_user/${id}`, 'POST', undefined, 'Error al eliminar usuario')
   }
 }
 

@@ -88,22 +88,6 @@
       <AppCard title="Cambiar Contraseña">
         <form @submit.prevent="handleChangePassword" class="space-y-6">
           <div class="space-y-4">
-            <!-- Contraseña actual -->
-            <AppInput
-              v-model="passwordForm.currentPassword"
-              type="password"
-              label="Contraseña actual"
-              placeholder="••••••••"
-              required
-              :error="passwordErrors.currentPassword"
-            >
-              <template #iconLeft>
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </template>
-            </AppInput>
-
             <!-- Nueva contraseña -->
             <AppInput
               v-model="passwordForm.newPassword"
@@ -171,6 +155,7 @@
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useUIStore } from '../stores/ui'
+import ProfileService from '../services/profile'
 import AppLayout from '../components/AppLayout.vue'
 import AppCard from '../components/AppCard.vue'
 import AppInput from '../components/AppInput.vue'
@@ -195,13 +180,11 @@ const errors = ref({
 
 // Formulario de contraseña
 const passwordForm = ref({
-  currentPassword: '',
   newPassword: '',
   confirmPassword: '',
 })
 
 const passwordErrors = ref({
-  currentPassword: '',
   newPassword: '',
   confirmPassword: '',
 })
@@ -224,12 +207,10 @@ function resetForm() {
 
 function resetPasswordForm() {
   passwordForm.value = {
-    currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   }
   passwordErrors.value = {
-    currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   }
@@ -252,14 +233,23 @@ async function handleSaveProfile() {
   isLoading.value = true
 
   try {
-    // TODO: Implementar llamada al backend para actualizar perfil
-    // Por ahora, solo actualizar localmente
-    authStore.updateUser({
+    // Actualizar perfil en el backend
+    const result = await ProfileService.updateProfile({
       name: form.value.name,
       email: form.value.email,
     })
 
-    uiStore.showSuccess('Perfil actualizado correctamente')
+    if (result.success) {
+      // Actualizar el store local con los nuevos datos
+      authStore.updateUser({
+        name: form.value.name,
+        email: form.value.email,
+      })
+
+      uiStore.showSuccess('Perfil actualizado correctamente')
+    } else {
+      uiStore.showError(result.message || 'Error al actualizar el perfil')
+    }
   } catch (error) {
     console.error('Error actualizando perfil:', error)
     uiStore.showError('Error al actualizar el perfil')
@@ -271,14 +261,8 @@ async function handleSaveProfile() {
 async function handleChangePassword() {
   // Validación
   passwordErrors.value = {
-    currentPassword: '',
     newPassword: '',
     confirmPassword: '',
-  }
-
-  if (!passwordForm.value.currentPassword) {
-    passwordErrors.value.currentPassword = 'La contraseña actual es requerida'
-    return
   }
 
   if (!passwordForm.value.newPassword) {
@@ -299,10 +283,15 @@ async function handleChangePassword() {
   isChangingPassword.value = true
 
   try {
-    // TODO: Implementar llamada al backend para cambiar contraseña
+    // Cambiar contraseña en el backend
+    const result = await ProfileService.changePassword(passwordForm.value.newPassword)
     
-    uiStore.showSuccess('Contraseña cambiada correctamente')
-    resetPasswordForm()
+    if (result.success) {
+      uiStore.showSuccess('Contraseña cambiada correctamente')
+      resetPasswordForm()
+    } else {
+      uiStore.showError(result.message || 'Error al cambiar la contraseña')
+    }
   } catch (error) {
     console.error('Error cambiando contraseña:', error)
     uiStore.showError('Error al cambiar la contraseña')

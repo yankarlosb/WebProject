@@ -41,7 +41,9 @@ use routes::manager::{
     create_user,
     delete_user,
     list_users,
-    modify_user
+    modify_user,
+    update_profile,
+    change_password
 };
 
 pub struct AppState {
@@ -66,6 +68,8 @@ pub async fn run() -> Rocket<Build> {
             delete_user,
             list_users,
             modify_user,
+            update_profile,
+            change_password,
             logout,
             verify_auth,
             balance_page,

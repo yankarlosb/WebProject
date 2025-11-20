@@ -180,6 +180,13 @@
     >
       <form @submit.prevent="saveUser" class="space-y-4">
         <AppInput
+          v-model="userForm.user_name"
+          label="Nombre de usuario"
+          placeholder="juanperez"
+          required
+        />
+        
+        <AppInput
           v-model="userForm.name"
           label="Nombre completo"
           placeholder="Juan Pérez"
@@ -296,6 +303,7 @@ const mockLogs = ref([
 
 // Formulario de usuario
 const emptyUserForm = () => ({
+  user_name: '',
   name: '',
   email: '',
   password: '',
@@ -316,6 +324,7 @@ function editUser(user: any) {
   isEditingUser.value = true
   editingUserId.value = user.id
   userForm.value = {
+    user_name: user.user_name,
     name: user.name,
     email: user.email,
     password: '',
@@ -335,7 +344,7 @@ function closeUserModal() {
 
 async function saveUser() {
   // Validación básica
-  if (!userForm.value.name || !userForm.value.email) {
+  if (!userForm.value.user_name || !userForm.value.name || !userForm.value.email) {
     uiStore.showWarning('Por favor completa todos los campos requeridos')
     return
   }
@@ -361,6 +370,7 @@ async function saveUser() {
     // Preparar el objeto completo que espera el backend (usuarios::Model)
     result = await usersStore.updateUser(editingUserId.value, {
       id: currentUser.id,
+      user_name: userForm.value.user_name,
       name: userForm.value.name,
       email: userForm.value.email,
       token: userForm.value.password || currentUser.token, // Si no hay nueva password, mantener la actual
@@ -377,6 +387,7 @@ async function saveUser() {
   } else {
     // Crear nuevo usuario
     result = await usersStore.createUser({
+      user_name: userForm.value.user_name,
       name: userForm.value.name,
       email: userForm.value.email,
       password: userForm.value.password,

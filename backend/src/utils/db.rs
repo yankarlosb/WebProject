@@ -17,6 +17,7 @@ pub async fn establish_connection() -> DatabaseConnection {
 
 pub async fn create_user(
     db: &DatabaseConnection,
+    user_name: &str,
     name: &str,
     email: &str,
     password: &str,
@@ -29,6 +30,7 @@ pub async fn create_user(
     let hashed_password = hash(password, DEFAULT_COST).expect("Error al hashear la contraseña");
 
     let new_user = usuarios::ActiveModel {
+        user_name: Set(user_name.to_string()),
         name: Set(name.to_string()),
         email: Set(email.to_string()),
         token: Set(hashed_password),
@@ -92,7 +94,8 @@ async fn update_user_fields(
         .expect("No se pudo obtener el usuario")
         .into();
 
-    // Always update name and email
+    // Always update user_name, name and email
+    modified_user.user_name = Set(user_data.user_name.clone());
     modified_user.name = Set(user_data.name.clone());
     modified_user.email = Set(user_data.email.clone());
 
@@ -102,5 +105,56 @@ async fn update_user_fields(
     }
 
     modified_user.update(db).await?;
+    Ok(())
+}
+
+/// Update profile - simplified wrapper for change_profile
+pub async fn update_profile(
+    db: &DatabaseConnection,
+    user_id: i32,
+    name: &str,
+    email: &str,
+) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::EntityTrait;
+    
+    // Get current user data
+    let mut user = usuarios::Entity::find_by_id(user_id)
+        .one(db)
+        .await?
+        .ok_or(sea_orm::DbErr::RecordNotFound("Usuario no encontrado".to_string()))?;
+    
+    // Update only name and email
+    user.name = name.to_string();
+    user.email = email.to_string();
+    
+    // Use existing change_profile which won't modify role
+    change_profile(db, user_id, user).await
+}
+
+/// Change user password - simple update without verification
+pub async fn change_user_password(
+    db: &DatabaseConnection,
+    user_id: i32,
+    new_password: &str,
+) -> Result<(), sea_orm::DbErr> {
+    use bcrypt::{DEFAULT_COST, hash};
+    use sea_orm::ActiveModelTrait;
+    use sea_orm::EntityTrait;
+    use sea_orm::Set;
+
+    // Hash new password
+    let hashed_password = hash(new_password, DEFAULT_COST)
+        .map_err(|_| sea_orm::DbErr::Custom("Error al hashear contraseña".to_string()))?;
+
+    // Get user and update only password
+    let user = usuarios::Entity::find_by_id(user_id)
+        .one(db)
+        .await?
+        .ok_or(sea_orm::DbErr::RecordNotFound("Usuario no encontrado".to_string()))?;
+
+    let mut user_active: ActiveModel = user.into();
+    user_active.token = Set(hashed_password);
+    user_active.update(db).await?;
+
     Ok(())
 }
