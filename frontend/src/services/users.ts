@@ -4,16 +4,10 @@
  */
 
 import { httpGet, httpPost } from './http'
+import type { UserWithToken } from '../types'
 
-export interface User {
-  id: number
-  user_name: string
-  name: string
-  email: string
-  token: string 
-  role: string
-  created_at?: string
-}
+// Re-export for backward compatibility
+export type User = UserWithToken
 
 export interface CreateUserRequest {
   user_name: string

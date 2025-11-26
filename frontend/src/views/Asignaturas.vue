@@ -398,14 +398,15 @@ interface EditForm extends Omit<UpdateAsignaturaData, 'hours'> {
   hours: number
 }
 
-const createForm = ref<CreateForm>({
+// Default form values to eliminate duplication
+const getDefaultCreateForm = (): CreateForm => ({
   name: '',
   year: '1ro',
   semester: 'Periodo 1',
   leader_user_name: ''
 })
 
-const editForm = ref<EditForm>({
+const getDefaultEditForm = (): EditForm => ({
   name: '',
   year: '',
   semester: '',
@@ -422,6 +423,12 @@ const editForm = ref<EditForm>({
   hours: 0,
   weeks: 15
 })
+
+const getDefaultErrors = () => ({ name: '', leader: '' })
+
+const createForm = ref<CreateForm>(getDefaultCreateForm())
+
+const editForm = ref<EditForm>(getDefaultEditForm())
 
 const errors = ref({ name: '', leader: '' })
 
@@ -451,13 +458,8 @@ onMounted(async () => {
 async function openCreateModal() {
   isEditing.value = false
   editingId.value = null
-  createForm.value = {
-    name: '',
-    year: '1ro',
-    semester: 'Periodo 1',
-    leader_user_name: ''
-  }
-  errors.value = { name: '', leader: '' }
+  createForm.value = getDefaultCreateForm()
+  errors.value = getDefaultErrors()
   
   // Cargar jefes de asignatura si no están cargados
   if (authStore.isLeader && asignaturasStore.subjectLeaders.length === 0) {
@@ -490,39 +492,18 @@ function openEditModal(asignatura: Asignatura) {
     weeks: asignatura.weeks
   }
   
-  errors.value = { name: '', leader: '' }
+  errors.value = getDefaultErrors()
   showModal.value = true
 }
 
 function closeModal() {
   showModal.value = false
   setTimeout(() => {
-    createForm.value = {
-      name: '',
-      year: '1ro',
-      semester: 'Periodo 1',
-      leader_user_name: ''
-    }
-    editForm.value = {
-      name: '',
-      year: '',
-      semester: '',
-      c: null,
-      cp: null,
-      s: null,
-      pl: null,
-      te: null,
-      t: null,
-      pp: null,
-      ec: null,
-      tc: null,
-      ef: null,
-      hours: 0,
-      weeks: 15
-    }
+    createForm.value = getDefaultCreateForm()
+    editForm.value = getDefaultEditForm()
     isEditing.value = false
     editingId.value = null
-    errors.value = { name: '', leader: '' }
+    errors.value = getDefaultErrors()
   }, 200)
 }
 
