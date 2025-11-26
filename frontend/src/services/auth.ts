@@ -17,7 +17,11 @@ export interface VerifyResponse {
 }
 
 /**
- * Makes an auth-specific HTTP request with credentials
+ * Makes an auth-specific HTTP request with credentials included
+ * @param endpoint - The API endpoint path (e.g., '/api/login')
+ * @param method - HTTP method, defaults to 'GET'
+ * @param body - Optional request body, will be JSON stringified
+ * @returns Promise resolving to the fetch Response
  */
 async function authRequest(
   endpoint: string,

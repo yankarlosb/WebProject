@@ -398,7 +398,10 @@ interface EditForm extends Omit<UpdateAsignaturaData, 'hours'> {
   hours: number
 }
 
-// Default form values to eliminate duplication
+/**
+ * Returns the default create form values for resetting the form
+ * @returns CreateForm with default values
+ */
 const getDefaultCreateForm = (): CreateForm => ({
   name: '',
   year: '1ro',
@@ -406,6 +409,10 @@ const getDefaultCreateForm = (): CreateForm => ({
   leader_user_name: ''
 })
 
+/**
+ * Returns the default edit form values for resetting the form
+ * @returns EditForm with default values
+ */
 const getDefaultEditForm = (): EditForm => ({
   name: '',
   year: '',
@@ -424,6 +431,10 @@ const getDefaultEditForm = (): EditForm => ({
   weeks: 15
 })
 
+/**
+ * Returns the default error state for form validation
+ * @returns Object with empty error strings for name and leader fields
+ */
 const getDefaultErrors = () => ({ name: '', leader: '' })
 
 const createForm = ref<CreateForm>(getDefaultCreateForm())
