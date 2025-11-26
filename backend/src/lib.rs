@@ -50,6 +50,14 @@ use routes::manager::{
     list_subject_leaders
 };
 
+use routes::balance::{
+    list_balances,
+    get_balance,
+    create_balance,
+    update_balance,
+    delete_balance
+};
+
 pub struct AppState {
     pub db: DatabaseConnection,
 }
@@ -81,6 +89,12 @@ pub async fn run() -> Rocket<Build> {
             update_asignatura,
             delete_asignatura,
             list_subject_leaders,
+            // Rutas de balances
+            list_balances,
+            get_balance,
+            create_balance,
+            update_balance,
+            delete_balance,
         ])
         .register("/", catchers![unauthorized])
         .mount("/", FileServer::from(frontend_path))

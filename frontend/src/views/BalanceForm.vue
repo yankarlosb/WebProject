@@ -43,10 +43,10 @@
               <div class="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h3 class="text-base font-bold text-blue-700">
-                    Balance {{ balanceStore.currentBalance.academicYearText }} - {{ balanceStore.currentBalance.period }}
+                    {{ balanceStore.currentBalance.academic_year }} Año - Período {{ balanceStore.currentBalance.period }} ({{ balanceStore.currentBalance.academic_year_text }})
                   </h3>
                   <p class="text-xs text-gray-600 mt-0.5">
-                    {{ balanceStore.currentBalance.subjects.length }} asignatura(s)
+                    {{ balanceStore.currentBalance.subjects.length }} asignatura(s) · {{ balanceStore.currentBalance.weeks }} semanas
                   </p>
                 </div>
                 <AppButton
@@ -216,26 +216,34 @@ const balanceConfig = computed(() => {
       period: '1ero',
       academicYearText: '',
       startDate: '',
+      weeks: 15,
     }
   }
   return {
-    academicYear: balanceStore.currentBalance.academicYear,
+    academicYear: balanceStore.currentBalance.academic_year,
     period: balanceStore.currentBalance.period,
-    academicYearText: balanceStore.currentBalance.academicYearText,
-    startDate: balanceStore.currentBalance.startDate,
+    academicYearText: balanceStore.currentBalance.academic_year_text,
+    startDate: balanceStore.currentBalance.start_date,
+    weeks: balanceStore.currentBalance.weeks,
   }
 })
 
 // Manejador de actualización de configuración
-function handleConfigUpdate(field: string, value: string) {
+function handleConfigUpdate(field: string, value: string | number) {
   if (!balanceStore.currentBalance) return
   
-  // Type-safe update
-  const validFields = ['academicYear', 'period', 'academicYearText', 'startDate'] as const
-  type ValidField = typeof validFields[number]
+  // Mapear nombres de campos del componente a los del store (snake_case)
+  const fieldMapping: Record<string, string> = {
+    'academicYear': 'academic_year',
+    'period': 'period',
+    'academicYearText': 'academic_year_text',
+    'startDate': 'start_date',
+    'weeks': 'weeks',
+  }
   
-  if (validFields.includes(field as ValidField)) {
-    (balanceStore.currentBalance as any)[field] = value
+  const storeField = fieldMapping[field]
+  if (storeField) {
+    (balanceStore.currentBalance as any)[storeField] = value
   }
   
   markDirty()

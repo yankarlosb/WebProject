@@ -22,7 +22,7 @@ export function useBalanceForm() {
   ]
 
   /**
-   * Inicializa el balance cargando uno existente o creando uno nuevo
+   * Inicializa el balance cargando uno existente desde API o creando uno nuevo
    */
   async function initializeBalance() {
     balanceStore.isLoading = true
@@ -31,18 +31,22 @@ export function useBalanceForm() {
       const balanceId = route.query.id as string
       
       if (balanceId) {
-        const loaded = balanceStore.loadBalance(balanceId)
+        // Cargar balance existente desde la API
+        const loaded = await balanceStore.loadBalance(parseInt(balanceId, 10))
         if (!loaded) {
           uiStore.showWarning('No se pudo cargar el balance')
           balanceStore.createNewBalance()
         }
       } else {
+        // Crear nuevo balance vacío
         balanceStore.createNewBalance()
       }
+    } catch (error) {
+      console.error('Error inicializando balance:', error)
+      uiStore.showError('Error al inicializar el balance')
+      balanceStore.createNewBalance()
     } finally {
-      setTimeout(() => {
-        balanceStore.isLoading = false
-      }, 100)
+      balanceStore.isLoading = false
     }
   }
 
@@ -54,11 +58,11 @@ export function useBalanceForm() {
   }
 
   /**
-   * Actualiza el valor de una celda específica
+   * Actualiza el valor de una celda específica (ahora con string para tipo de actividad)
    */
   function updateCellValue(subjectId: string, cellIndex: number, event: Event) {
-    const target = event.target as HTMLInputElement
-    const value = Number(target.value) || 0
+    const target = event.target as HTMLSelectElement
+    const value = target.value // String del tipo de actividad: 'C', 'CP', 'S', etc.
     balanceStore.updateSubjectValue(subjectId, cellIndex, value)
   }
 
@@ -72,21 +76,21 @@ export function useBalanceForm() {
   }
 
   /**
-   * Guarda el balance actual
+   * Guarda el balance actual en la base de datos
    */
   async function saveBalance() {
     isSaving.value = true
     
     try {
-      const success = balanceStore.saveBalance()
+      const result = await balanceStore.saveBalance()
       
-      if (success) {
-        uiStore.showSuccess('Balance guardado correctamente')
+      if (result.success) {
+        uiStore.showSuccess(result.message)
         setTimeout(() => {
           router.push('/dashboard')
         }, 1000)
       } else {
-        uiStore.showError('Error al guardar el balance')
+        uiStore.showError(result.message)
       }
     } catch (error) {
       console.error('Error guardando:', error)

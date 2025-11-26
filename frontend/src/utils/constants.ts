@@ -9,11 +9,24 @@ export const yearOptions = [
 export const tiposActividad = [
   { id: 'c', label: 'C' },
   { id: 'cp', label: 'CP' },
+  { id: 's', label: 'S' },
   { id: 'pl', label: 'PL' },
   { id: 't', label: 'T' },
   { id: 'te', label: 'TE' },
   { id: 'pp', label: 'PP' },
   { id: 'ef', label: 'EF' },
+]
+
+// Tipos de actividad para el balance de carga (selectores en la tabla)
+export const tiposActividadBalance = [
+  { value: '', label: '-' },
+  { value: 'C', label: 'C' },
+  { value: 'CP', label: 'CP' },
+  { value: 'S', label: 'S' },
+  { value: 'PL', label: 'PL' },
+  { value: 'T', label: 'T' },
+  { value: 'TE', label: 'TE' },
+  { value: 'PP', label: 'PP' },
 ]
 
 // Roles de usuario (sincronizados con backend jwt.rs)

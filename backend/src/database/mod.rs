@@ -3,4 +3,5 @@
 pub mod prelude;
 
 pub mod asignaturas;
+pub mod balance;
 pub mod usuarios;

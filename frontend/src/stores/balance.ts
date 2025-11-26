@@ -1,27 +1,15 @@
 /**
  * Store de Balances
  * Maneja el estado global de los balances de carga docente
+ * Sincronizado con el backend via API
  */
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { balancesService, type Balance, type BalanceSubject, type BalanceRequest } from '../services/balances'
 
-export interface BalanceSubject {
-  id: string
-  name: string
-  values: number[] // 79 valores (15 semanas × 4 días + semana consultas + exámenes)
-}
-
-export interface Balance {
-  id: string
-  academicYear: string // '1ro', '2do', '3ro', '4to'
-  period: string // '1ero', '2do'
-  academicYearText: string // '2025-2026'
-  startDate: string
-  subjects: BalanceSubject[]
-  savedAt: string
-  updatedAt?: string
-}
+// Re-exportar tipos para uso externo
+export type { Balance, BalanceSubject, BalanceRequest }
 
 export interface BalanceCalculation {
   subjectId: string
@@ -37,147 +25,247 @@ export interface BalanceCalculation {
   coef: number
 }
 
-const STORAGE_KEY_PREFIX = 'balance_'
-const RECENT_BALANCES_KEY = 'recentBalances'
+// Tipo interno para el balance en edición (puede no tener ID aún)
+export interface EditableBalance {
+  id?: number                // undefined si es nuevo
+  academic_year: string      // '1ro', '2do', '3ro', '4to'
+  period: string             // '1ero', '2do'
+  academic_year_text: string // '2025-2026'
+  start_date: string         // 'YYYY-MM-DD'
+  weeks: number
+  subjects: BalanceSubject[]
+}
 
 export const useBalanceStore = defineStore('balance', () => {
-  // State
-  const currentBalance = ref<Balance | null>(null)
+  // ============================================================================
+  // STATE
+  // ============================================================================
+  
+  /** Lista de todos los balances del usuario (desde la API) */
+  const balances = ref<Balance[]>([])
+  
+  /** Balance actualmente en edición */
+  const currentBalance = ref<EditableBalance | null>(null)
+  
+  /** Cálculos del balance actual */
   const calculations = ref<BalanceCalculation[]>([])
-  const isDirty = ref(false) // Indica si hay cambios sin guardar
+  
+  /** Indica si hay cambios sin guardar */
+  const isDirty = ref(false)
+  
+  /** Estado de carga */
   const isLoading = ref(false)
+  
+  /** Error de la última operación */
+  const error = ref<string | null>(null)
 
-  // Getters
+  // ============================================================================
+  // GETTERS
+  // ============================================================================
+  
   const hasUnsavedChanges = computed(() => isDirty.value)
   const hasSubjects = computed(() => (currentBalance.value?.subjects.length || 0) > 0)
+  const balancesCount = computed(() => balances.value.length)
+  const isNewBalance = computed(() => currentBalance.value?.id === undefined)
 
-  // Actions
+  // ============================================================================
+  // ACTIONS - API
+  // ============================================================================
 
   /**
-   * Crear un nuevo balance vacío
+   * Cargar todos los balances del usuario desde la API
    */
-  function createNewBalance(academicYear: string = '1ro', period: string = '1ero') {
-    const today = new Date().toISOString().split('T')
+  async function fetchBalances(): Promise<boolean> {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const response = await balancesService.list()
+      if (response.success && response.data) {
+        balances.value = response.data
+        return true
+      } else {
+        error.value = response.message || 'Error al cargar balances'
+        return false
+      }
+    } catch (e) {
+      error.value = 'Error de conexión al cargar balances'
+      console.error('Error fetching balances:', e)
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Cargar un balance específico por ID desde la API
+   */
+  async function loadBalance(id: number): Promise<boolean> {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const response = await balancesService.get(id)
+      if (response.success && response.data) {
+        // Convertir Balance de API a EditableBalance
+        currentBalance.value = {
+          id: response.data.id,
+          academic_year: response.data.academic_year,
+          period: response.data.period,
+          academic_year_text: response.data.academic_year_text,
+          start_date: response.data.start_date,
+          weeks: response.data.weeks,
+          subjects: response.data.subjects,
+        }
+        isDirty.value = false
+        calculateAll()
+        return true
+      } else {
+        error.value = response.message || 'Balance no encontrado'
+        return false
+      }
+    } catch (e) {
+      error.value = 'Error de conexión al cargar el balance'
+      console.error('Error loading balance:', e)
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Guardar el balance actual (crear o actualizar)
+   */
+  async function saveBalance(): Promise<{ success: boolean; message: string }> {
+    if (!currentBalance.value) {
+      return { success: false, message: 'No hay balance para guardar' }
+    }
+
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const request: BalanceRequest = {
+        academic_year: currentBalance.value.academic_year,
+        period: currentBalance.value.period,
+        academic_year_text: currentBalance.value.academic_year_text,
+        start_date: currentBalance.value.start_date,
+        weeks: currentBalance.value.weeks,
+        subjects: currentBalance.value.subjects,
+      }
+
+      let response
+      if (currentBalance.value.id !== undefined) {
+        // Actualizar existente
+        response = await balancesService.update(currentBalance.value.id, request)
+      } else {
+        // Crear nuevo
+        response = await balancesService.create(request)
+      }
+
+      if (response.success && response.data) {
+        // Actualizar el balance actual con los datos del servidor
+        currentBalance.value = {
+          id: response.data.id,
+          academic_year: response.data.academic_year,
+          period: response.data.period,
+          academic_year_text: response.data.academic_year_text,
+          start_date: response.data.start_date,
+          weeks: response.data.weeks,
+          subjects: response.data.subjects,
+        }
+        isDirty.value = false
+        
+        // Refrescar la lista de balances
+        await fetchBalances()
+        
+        return { success: true, message: 'Balance guardado exitosamente' }
+      } else {
+        error.value = response.message || 'Error al guardar el balance'
+        return { success: false, message: error.value }
+      }
+    } catch (e) {
+      error.value = 'Error de conexión al guardar'
+      console.error('Error saving balance:', e)
+      return { success: false, message: error.value }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Eliminar un balance por ID
+   */
+  async function deleteBalance(id: number): Promise<{ success: boolean; message: string }> {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const response = await balancesService.delete(id)
+      if (response.success) {
+        // Remover de la lista local
+        balances.value = balances.value.filter(b => b.id !== id)
+        
+        // Si es el balance actual, resetear
+        if (currentBalance.value?.id === id) {
+          resetBalance()
+        }
+        
+        return { success: true, message: 'Balance eliminado exitosamente' }
+      } else {
+        error.value = response.message || 'Error al eliminar el balance'
+        return { success: false, message: error.value }
+      }
+    } catch (e) {
+      error.value = 'Error de conexión al eliminar'
+      console.error('Error deleting balance:', e)
+      return { success: false, message: error.value }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // ============================================================================
+  // ACTIONS - LOCALES (edición en memoria)
+  // ============================================================================
+
+  /**
+   * Crear un nuevo balance vacío (en memoria, no guardado aún)
+   */
+  function createNewBalance(
+    academicYear: string = '1ro',
+    period: string = '1ero',
+    weeks: number = 15
+  ) {
+    const today = new Date().toISOString().split('T')[0] || ''
+    
     currentBalance.value = {
-      id: Date.now().toString(),
-      academicYear,
-      period,
-      academicYearText: '2025-2026',
-      startDate: today[0] || '',
+      // No tiene ID porque aún no está guardado
+      academic_year: academicYear,
+      period: period,
+      academic_year_text: '2025-2026',
+      start_date: today,
+      weeks: weeks,
       subjects: [],
-      savedAt: new Date().toISOString(),
     }
     calculations.value = []
     isDirty.value = false
   }
 
   /**
-   * Cargar un balance existente por ID
-   */
-  function loadBalance(id: string): boolean {
-    try {
-      const raw = localStorage.getItem(`${STORAGE_KEY_PREFIX}${id}`)
-      if (!raw) return false
-
-      const balance = JSON.parse(raw) as Balance
-      currentBalance.value = balance
-      isDirty.value = false
-      
-      // Recalcular automáticamente
-      calculateAll()
-      
-      return true
-    } catch (error) {
-      console.error('Error cargando balance:', error)
-      return false
-    }
-  }
-
-  /**
-   * Guardar el balance actual
-   */
-  function saveBalance(): boolean {
-    if (!currentBalance.value) return false
-
-    try {
-      const balance = {
-        ...currentBalance.value,
-        updatedAt: new Date().toISOString(),
-      }
-
-      // Guardar el balance completo
-      localStorage.setItem(
-        `${STORAGE_KEY_PREFIX}${balance.id}`,
-        JSON.stringify(balance)
-      )
-
-      // Actualizar lista de recientes
-      updateRecentBalances(balance)
-
-      currentBalance.value = balance
-      isDirty.value = false
-
-      return true
-    } catch (error) {
-      console.error('Error guardando balance:', error)
-      return false
-    }
-  }
-
-  /**
-   * Actualizar lista de balances recientes
-   */
-  function updateRecentBalances(balance: Balance) {
-    try {
-      const raw = localStorage.getItem(RECENT_BALANCES_KEY)
-      const recent = raw ? JSON.parse(raw) : []
-
-      // Remover si ya existe
-      const filtered = recent.filter((r: any) => r.id !== balance.id)
-
-      // Agregar al inicio
-      const summary = {
-        id: balance.id,
-        year: balance.academicYearText,
-        period: balance.period,
-        date: new Date(balance.updatedAt || balance.savedAt).toLocaleString(),
-      }
-
-      filtered.unshift(summary)
-
-      // Mantener máximo 10
-      localStorage.setItem(
-        RECENT_BALANCES_KEY,
-        JSON.stringify(filtered.slice(0, 10))
-      )
-    } catch (error) {
-      console.error('Error actualizando recientes:', error)
-    }
-  }
-
-  /**
-   * Obtener lista de balances recientes
-   */
-  function getRecentBalances(): any[] {
-    try {
-      const raw = localStorage.getItem(RECENT_BALANCES_KEY)
-      return raw ? JSON.parse(raw) : []
-    } catch (error) {
-      console.error('Error obteniendo recientes:', error)
-      return []
-    }
-  }
-
-  /**
-   * Agregar una asignatura al balance
+   * Agregar una asignatura al balance actual
    */
   function addSubject(subjectName: string) {
     if (!currentBalance.value) return
 
+    // Calcular número de celdas basado en semanas
+    const weeks = currentBalance.value.weeks || 15
+    const cellsCount = weeks * 4 + 9 // semanas * 4 días + consultas(4) + exámenes(5)
+
     const newSubject: BalanceSubject = {
       id: Date.now().toString(),
       name: subjectName,
-      values: Array(79).fill(0), // 15 semanas × 4 días + extras
+      values: Array(cellsCount).fill(''),
     }
 
     currentBalance.value.subjects.push(newSubject)
@@ -185,7 +273,7 @@ export const useBalanceStore = defineStore('balance', () => {
   }
 
   /**
-   * Eliminar una asignatura del balance
+   * Eliminar una asignatura del balance actual
    */
   function removeSubject(subjectId: string) {
     if (!currentBalance.value) return
@@ -200,7 +288,7 @@ export const useBalanceStore = defineStore('balance', () => {
   /**
    * Actualizar un valor en la tabla del balance
    */
-  function updateSubjectValue(subjectId: string, cellIndex: number, value: number) {
+  function updateSubjectValue(subjectId: string, cellIndex: number, value: string) {
     if (!currentBalance.value) return
 
     const subject = currentBalance.value.subjects.find(s => s.id === subjectId)
@@ -213,7 +301,7 @@ export const useBalanceStore = defineStore('balance', () => {
   /**
    * Actualizar metadatos del balance
    */
-  function updateBalanceMetadata(updates: Partial<Omit<Balance, 'id' | 'subjects'>>) {
+  function updateBalanceMetadata(updates: Partial<Omit<EditableBalance, 'id' | 'subjects'>>) {
     if (!currentBalance.value) return
 
     currentBalance.value = {
@@ -224,65 +312,55 @@ export const useBalanceStore = defineStore('balance', () => {
   }
 
   /**
-   * Calcular totales y coeficientes
+   * Calcular totales y coeficientes para cada asignatura
    */
   function calculateAll() {
     if (!currentBalance.value) return
 
     calculations.value = currentBalance.value.subjects.map(subject => {
-      const total = subject.values.reduce((sum, val) => sum + val, 0)
-      
-      return {
-        subjectId: subject.id,
-        subjectName: subject.name,
-        total,
-        C: 0, // TODO: Implementar lógica de cálculo según reglas
+      // Contar cada tipo de actividad
+      const counts = {
+        C: 0,
         CP: 0,
         S: 0,
         PL: 0,
         TE: 0,
         T: 0,
         PP: 0,
+      }
+      
+      let total = 0
+      subject.values.forEach(val => {
+        if (typeof val === 'string' && val in counts) {
+          counts[val as keyof typeof counts]++
+          total++
+        }
+      })
+      
+      return {
+        subjectId: subject.id,
+        subjectName: subject.name,
+        total,
+        C: counts.C,
+        CP: counts.CP,
+        S: counts.S,
+        PL: counts.PL,
+        TE: counts.TE,
+        T: counts.T,
+        PP: counts.PP,
         coef: parseFloat((total * 1.2).toFixed(2)),
       }
     })
   }
 
   /**
-   * Reiniciar el balance actual
+   * Reiniciar el balance actual (sin eliminar de la DB)
    */
   function resetBalance() {
     currentBalance.value = null
     calculations.value = []
     isDirty.value = false
-  }
-
-  /**
-   * Eliminar un balance guardado
-   */
-  function deleteBalance(id: string): boolean {
-    try {
-      // Eliminar del storage
-      localStorage.removeItem(`${STORAGE_KEY_PREFIX}${id}`)
-
-      // Actualizar recientes
-      const raw = localStorage.getItem(RECENT_BALANCES_KEY)
-      if (raw) {
-        const recent = JSON.parse(raw)
-        const filtered = recent.filter((r: any) => r.id !== id)
-        localStorage.setItem(RECENT_BALANCES_KEY, JSON.stringify(filtered))
-      }
-
-      // Si es el balance actual, resetearlo
-      if (currentBalance.value?.id === id) {
-        resetBalance()
-      }
-
-      return true
-    } catch (error) {
-      console.error('Error eliminando balance:', error)
-      return false
-    }
+    error.value = null
   }
 
   /**
@@ -292,29 +370,43 @@ export const useBalanceStore = defineStore('balance', () => {
     isDirty.value = false
   }
 
+  /**
+   * Limpiar error
+   */
+  function clearError() {
+    error.value = null
+  }
+
   return {
     // State
+    balances,
     currentBalance,
     calculations,
     isDirty,
     isLoading,
+    error,
 
     // Getters
     hasUnsavedChanges,
     hasSubjects,
+    balancesCount,
+    isNewBalance,
 
-    // Actions
-    createNewBalance,
+    // Actions - API
+    fetchBalances,
     loadBalance,
     saveBalance,
-    getRecentBalances,
+    deleteBalance,
+
+    // Actions - Locales
+    createNewBalance,
     addSubject,
     removeSubject,
     updateSubjectValue,
     updateBalanceMetadata,
     calculateAll,
     resetBalance,
-    deleteBalance,
     markAsSaved,
+    clearError,
   }
 })

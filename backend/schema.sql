@@ -47,7 +47,33 @@ CREATE TABLE IF NOT EXISTS asignaturas (
     date_end TIMESTAMP NOT NULL
 );
 
+-- Tabla de balances de carga docente
+-- La columna 'subjects' almacena un array JSON con las asignaturas y sus valores
+-- Estructura: [{ "id": "string", "name": "string", "values": ["C", "CP", "", ...] }, ...]
+CREATE TABLE IF NOT EXISTS balances (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    name TEXT NOT NULL DEFAULT 'Balance sin nombre',
+    academic_year TEXT NOT NULL,           -- '1ro', '2do', '3ro', '4to'
+    period TEXT NOT NULL,                  -- '1ero', '2do'
+    academic_year_text TEXT NOT NULL,      -- '2025-2026'
+    start_date DATE NOT NULL,
+    weeks INTEGER NOT NULL DEFAULT 15,     -- Número de semanas (variable)
+    subjects JSONB NOT NULL DEFAULT '[]',  -- Array de asignaturas con valores
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índices para optimizar queries de balances
+CREATE INDEX IF NOT EXISTS idx_balances_user_id ON balances(user_id);
+CREATE INDEX IF NOT EXISTS idx_balances_created ON balances(created_at DESC);
+
 -- Registrar schema inicial
 INSERT INTO schema_migrations (version, description) 
 VALUES ('000', 'Initial schema - usuarios and asignaturas tables')
+ON CONFLICT (version) DO NOTHING;
+
+-- Registrar migración de balances
+INSERT INTO schema_migrations (version, description)
+VALUES ('001', 'Add balances table with JSONB subjects')
 ON CONFLICT (version) DO NOTHING;

@@ -18,6 +18,9 @@ export const useAuthStore = defineStore('auth', () => {
   const isAdmin = computed(() => user.value?.role === USER_ROLES.ADMIN)
   const isLeader = computed(() => user.value?.role === USER_ROLES.LEADER)
   const isSubjectLeader = computed(() => user.value?.role === USER_ROLES.SUBJECT_LEADER)
+  const isLeaderOrSubjectLeader = computed(() => 
+    user.value?.role === USER_ROLES.LEADER || user.value?.role === USER_ROLES.SUBJECT_LEADER
+  )
   const isRegularUser = computed(() => user.value?.role === USER_ROLES.USER)
   const userName = computed(() => user.value?.name || 'Usuario')
   const userEmail = computed(() => user.value?.email || '')
@@ -111,6 +114,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAdmin,
     isLeader,
     isSubjectLeader,
+    isLeaderOrSubjectLeader,
     isRegularUser,
     userName,
     userEmail,

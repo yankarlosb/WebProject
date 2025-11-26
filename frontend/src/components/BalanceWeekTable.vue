@@ -20,7 +20,7 @@
       <table class="w-full divide-y divide-gray-200">
         <thead :class="tableHeaderColorClass">
           <tr>
-            <th class="px-4 py-3 text-left text-xs font-bold uppercase min-w-[160px]"
+            <th class="px-3 py-2 text-left text-xs font-bold uppercase min-w-[140px]"
                 :class="headerTextColorClass">
               Asignatura
             </th>
@@ -29,14 +29,14 @@
               :key="`week-${week}`"
               :colspan="columnsPerWeek"
               :class="[
-                'px-2 py-2 text-center text-xs font-semibold border-l border-gray-300',
+                'px-1 py-2 text-center text-xs font-semibold border-l border-gray-300',
                 headerTextColorClass
               ]"
             >
-              Semana {{ week }}
+              S{{ week }}
             </th>
             <th v-if="showActions"
-                class="px-4 py-3 text-center text-xs font-bold text-red-700 uppercase border-l border-gray-300">
+                class="px-3 py-2 text-center text-xs font-bold text-red-700 uppercase border-l border-gray-300">
               Acciones
             </th>
           </tr>
@@ -47,33 +47,35 @@
             :key="`subject-${subject.id}`"
             :class="rowHoverColorClass"
           >
-            <td class="px-4 py-3 font-semibold text-sm text-gray-900 bg-gray-50">
+            <td class="px-3 py-2 font-semibold text-xs text-gray-900 bg-gray-50 truncate max-w-[140px]" :title="subject.name">
               {{ subject.name }}
             </td>
             <td
               v-for="(cellIndex, idx) in totalCells"
               :key="`cell-${cellIndex}`"
-              class="px-1 py-2 text-center"
+              class="px-0.5 py-1 text-center"
               :class="idx % columnsPerWeek === 0 ? 'border-l border-gray-300' : ''"
             >
-              <input
-                type="number"
-                :value="subject.values[startCellIndex + idx]"
-                @input="(e) => $emit('update-value', subject.id, startCellIndex + idx, e)"
-                min="0"
+              <select
+                :value="getCellValue(subject.values[startCellIndex + idx])"
+                @change="(e) => handleSelectChange(subject.id, startCellIndex + idx, e)"
                 :class="[
-                  'w-12 h-8 text-center border border-gray-200 rounded text-sm focus:ring-2 outline-none',
+                  'w-11 h-7 text-center border border-gray-200 rounded text-xs focus:ring-2 outline-none cursor-pointer appearance-none px-1',
                   focusRingClass,
-                  (subject.values[startCellIndex + idx] || 0) > 0 ? `${cellFilledClass} font-semibold` : ''
+                  getCellValue(subject.values[startCellIndex + idx]) ? `${cellFilledClass} font-semibold` : 'bg-white'
                 ]"
-              />
+              >
+                <option v-for="tipo in tiposActividadBalance" :key="tipo.value" :value="tipo.value">
+                  {{ tipo.label }}
+                </option>
+              </select>
             </td>
-            <td v-if="showActions" class="px-4 py-3 text-center border-l border-gray-300">
+            <td v-if="showActions" class="px-3 py-2 text-center border-l border-gray-300">
               <button
                 @click="$emit('delete-subject', subject.id)"
-                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
               >
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
                 Eliminar
@@ -88,11 +90,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { tiposActividadBalance } from '../utils/constants'
 
 interface Subject {
   id: string
   name: string
-  values: number[]
+  values: (number | string)[]
 }
 
 interface Props {
@@ -113,10 +116,27 @@ const props = withDefaults(defineProps<Props>(), {
   showActions: false
 })
 
-defineEmits<{
+const emit = defineEmits<{
   'update-value': [subjectId: string, cellIndex: number, event: Event]
   'delete-subject': [subjectId: string]
 }>()
+
+// Convierte valores numéricos legacy a string o devuelve el string
+function getCellValue(value: number | string | undefined): string {
+  if (value === undefined || value === null || value === 0 || value === '') {
+    return ''
+  }
+  // Si es un número mayor a 0, lo tratamos como valor legacy (se podría mapear o ignorar)
+  if (typeof value === 'number') {
+    return ''
+  }
+  return value
+}
+
+// Maneja el cambio en el select
+function handleSelectChange(subjectId: string, cellIndex: number, event: Event) {
+  emit('update-value', subjectId, cellIndex, event)
+}
 
 // Computed
 const totalCells = computed(() => props.weeks.length * props.columnsPerWeek)
@@ -167,18 +187,19 @@ const cellFilledClass = computed(() => colorClasses[props.colorScheme].cellFille
 </script>
 
 <style scoped>
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-  opacity: 0;
+select {
+  background-image: none;
 }
 
-input[type="number"]:hover::-webkit-inner-spin-button,
-input[type="number"]:hover::-webkit-outer-spin-button {
-  opacity: 1;
-}
-
-input[type="number"]:focus {
+select:focus {
   transform: scale(1.05);
   transition: transform 0.15s ease;
+}
+
+/* Ocultar flecha del select en WebKit */
+select::-webkit-outer-spin-button,
+select::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 </style>
