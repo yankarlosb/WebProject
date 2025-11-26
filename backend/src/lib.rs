@@ -31,7 +31,6 @@ pub use utils::cors::CORS;
 // Importar las rutas para usar en el macro routes!
 use routes::login::{
     login_json,
-    balance_page,
     logout,
     verify_auth,
     unauthorized
@@ -43,7 +42,12 @@ use routes::manager::{
     list_users,
     modify_user,
     update_profile,
-    change_password
+    change_password,
+    create_asignatura,
+    list_asignaturas,
+    update_asignatura,
+    delete_asignatura,
+    list_subject_leaders
 };
 
 pub struct AppState {
@@ -72,7 +76,11 @@ pub async fn run() -> Rocket<Build> {
             change_password,
             logout,
             verify_auth,
-            balance_page,
+            create_asignatura,
+            list_asignaturas,
+            update_asignatura,
+            delete_asignatura,
+            list_subject_leaders,
         ])
         .register("/", catchers![unauthorized])
         .mount("/", FileServer::from(frontend_path))

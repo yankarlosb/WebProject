@@ -1,7 +1,6 @@
 use crate::utils::jwt::{AuthenticatedUser, Claims, LoginResponse, UserInfo, create_jwt};
 use crate::*;
 use rocket::http::{Cookie, CookieJar, SameSite};
-use rocket::response::content;
 use rocket::time::Duration;
 use rocket::{catch, get, post};
 use serde::{Deserialize, Serialize};
@@ -64,7 +63,7 @@ pub async fn login_json(
             cookie.set_same_site(SameSite::Lax);
             cookie.set_secure(true);
             cookie.set_path("/");
-            cookie.set_max_age(Duration::hours(24));
+            cookie.set_max_age(Duration::seconds(10800));
             cookies.add(cookie);
 
             // Crear información del usuario para la respuesta
@@ -85,14 +84,6 @@ pub async fn login_json(
             "Error al generar el token".to_string(),
         )),
     }
-}
-
-/// Página de balance - Solo usuarios autenticados
-#[get("/balance")]
-pub async fn balance_page(_user: AuthenticatedUser) -> Option<NamedFile> {
-    // El guardián valida automáticamente la cookie JWT
-    // Si no está autenticado, devuelve 401 y Rocket maneja el error
-    NamedFile::open("../frontend/balance.html").await.ok()
 }
 
 /// Logout - Elimina la cookie JWT y redirecciona al login
@@ -131,21 +122,37 @@ pub fn verify_auth(user: AuthenticatedUser) -> Json<VerifyResponse> {
     })
 }
 
-/// Catcher para error 401 (No autorizado) - Muestra alerta y redirige
+/// Estructura para respuesta de error de autenticación
+#[derive(Serialize)]
+pub struct UnauthorizedResponse {
+    success: bool,
+    message: String,
+    alert: String,
+}
+
+/// Catcher para error 401 (No autorizado)
+/// Devuelve JSON para peticiones API, HTML para navegación directa
 #[catch(401)]
-pub fn unauthorized() -> content::RawHtml<&'static str> {
-    content::RawHtml(
-        r#"
-        <!DOCTYPE html>
-        <html>
-        <head><meta charset="UTF-8"></head>
-        <body>
-            <script>
-                alert('⚠️ Por favor, inicie sesión para acceder a esta página.');
-                window.location.href = '/login';
-            </script>
-        </body>
-        </html>
-    "#,
-    )
+pub fn unauthorized(req: &rocket::Request<'_>) -> (rocket::http::Status, rocket::serde::json::Value) {
+    // Verificar si la petición es a un endpoint de API
+    if req.uri().path().as_str().starts_with("/api/") {
+        // Devolver JSON para peticiones de API
+        (
+            rocket::http::Status::Unauthorized,
+            rocket::serde::json::json!({
+                "success": false,
+                "message": "No autorizado. Por favor, inicie sesión.",
+                "alert": "error"
+            })
+        )
+    } else {
+        // Para navegación directa, devolver un objeto JSON que el cliente puede manejar
+        (
+            rocket::http::Status::Unauthorized,
+            rocket::serde::json::json!({
+                "redirect": "/login",
+                "message": "Por favor, inicie sesión para acceder a esta página."
+            })
+        )
+    }
 }

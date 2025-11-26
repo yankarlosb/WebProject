@@ -158,3 +158,150 @@ pub async fn change_user_password(
 
     Ok(())
 }
+
+// ============================================================================
+// FUNCIONES DE ASIGNATURAS
+// ============================================================================
+
+use crate::asignaturas;
+use crate::routes::manager::{CreateAsignaturaRequest, UpdateAsignaturaRequest};
+use chrono::Utc;
+
+/// Crear asignatura - busca el subject leader por username y crea con datos por defecto
+pub async fn create_asignatura(
+    db: &DatabaseConnection,
+    data: &CreateAsignaturaRequest,
+) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+
+    // Buscar el usuario por user_name con role 'subjectLeader'
+    let subject_leader = usuarios::Entity::find()
+        .filter(usuarios::Column::UserName.eq(&data.leader_user_name))
+        .filter(usuarios::Column::Role.eq("subjectLeader"))
+        .one(db)
+        .await?
+        .ok_or(sea_orm::DbErr::RecordNotFound(format!(
+            "No se encontró un jefe de asignatura con username '{}'",
+            data.leader_user_name
+        )))?;
+
+    // Crear asignatura con datos por defecto
+    let new_asignatura = asignaturas::ActiveModel {
+        leader_id: Set(subject_leader.id),
+        name: Set(data.name.clone()),
+        year: Set(data.year.clone()),
+        semester: Set(data.semester.clone()),
+        c: Set(None),
+        cp: Set(None),
+        s: Set(None),
+        pl: Set(None),
+        te: Set(None),
+        t: Set(None),
+        pp: Set(None),
+        ec: Set(None),
+        tc: Set(None),
+        ef: Set(None),
+        hours: Set(0),
+        weeks: Set(Some(15)),
+        date_start: Set(Utc::now().naive_utc()),
+        date_end: Set(Utc::now().naive_utc()),
+        ..Default::default()
+    };
+
+    new_asignatura.insert(db).await?;
+    Ok(())
+}
+
+/// Listar asignaturas - filtra según el rol del usuario
+pub async fn list_asignaturas(
+    db: &DatabaseConnection,
+    user_id: i32,
+    role: &str,
+) -> Result<Vec<asignaturas::Model>, sea_orm::DbErr> {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+    if role == "leader" {
+        // Leaders ven todas las asignaturas
+        asignaturas::Entity::find().all(db).await
+    } else if role == "subjectLeader" {
+        // Subject Leaders solo ven sus asignaturas
+        asignaturas::Entity::find()
+            .filter(asignaturas::Column::LeaderId.eq(user_id))
+            .all(db)
+            .await
+    } else {
+        Ok(vec![])
+    }
+}
+
+/// Actualizar asignatura - solo si el usuario es el dueño (subject leader)
+pub async fn update_asignatura(
+    db: &DatabaseConnection,
+    asignatura_id: i32,
+    user_id: i32,
+    data: &UpdateAsignaturaRequest,
+) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+    // Buscar la asignatura
+    let asignatura = asignaturas::Entity::find_by_id(asignatura_id)
+        .one(db)
+        .await?
+        .ok_or(sea_orm::DbErr::RecordNotFound("Asignatura no encontrada".to_string()))?;
+
+    // Verificar que el usuario sea el dueño
+    if asignatura.leader_id != user_id {
+        return Err(sea_orm::DbErr::Custom(
+            "No tienes permisos para editar esta asignatura".to_string()
+        ));
+    }
+
+    // Actualizar asignatura
+    let mut asignatura_active: asignaturas::ActiveModel = asignatura.into();
+    asignatura_active.name = Set(data.name.clone());
+    asignatura_active.year = Set(data.year.clone());
+    asignatura_active.semester = Set(data.semester.clone());
+    asignatura_active.c = Set(data.c);
+    asignatura_active.cp = Set(data.cp);
+    asignatura_active.s = Set(data.s);
+    asignatura_active.pl = Set(data.pl);
+    asignatura_active.te = Set(data.te);
+    asignatura_active.t = Set(data.t);
+    asignatura_active.pp = Set(data.pp);
+    asignatura_active.ec = Set(data.ec);
+    asignatura_active.tc = Set(data.tc);
+    asignatura_active.ef = Set(data.ef);
+    asignatura_active.hours = Set(data.hours);
+    asignatura_active.weeks = Set(data.weeks);
+
+    asignatura_active.update(db).await?;
+    Ok(())
+}
+
+/// Eliminar asignatura - solo leaders
+pub async fn delete_asignatura(
+    db: &DatabaseConnection,
+    asignatura_id: i32,
+) -> Result<(), sea_orm::DbErr> {
+    use sea_orm::{EntityTrait, ModelTrait};
+
+    let asignatura = asignaturas::Entity::find_by_id(asignatura_id)
+        .one(db)
+        .await?
+        .ok_or(sea_orm::DbErr::RecordNotFound("Asignatura no encontrada".to_string()))?;
+
+    asignatura.delete(db).await?;
+    Ok(())
+}
+
+/// Listar jefes de asignatura (role = 'subjectLeader')
+pub async fn list_subject_leaders(
+    db: &DatabaseConnection,
+) -> Result<Vec<usuarios::Model>, sea_orm::DbErr> {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+    usuarios::Entity::find()
+        .filter(usuarios::Column::Role.eq("subjectLeader"))
+        .all(db)
+        .await
+}

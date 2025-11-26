@@ -26,7 +26,6 @@ pub struct Claims {
 }
 
 impl Claims {
-    /// Crea un nuevo claim con una expiración de 24 horas
     pub fn new(
         user_id: i32, 
         user_name: String,
@@ -52,7 +51,7 @@ impl Claims {
             role,
             ip: client_ip,
             iat: now,
-            exp: now + 86400, // 24 horas = 86400 segundos
+            exp: now + 10800, // 3 horas = 10800 segundos
         }
     }
 }
@@ -203,6 +202,28 @@ impl<'r> FromRequest<'r> for SubjectLeaderUser {
 
         if has_role(&auth_user, &["subjectLeader"]) {
             Outcome::Success(SubjectLeaderUser(auth_user.0))
+        } else {
+            Outcome::Error((Status::Forbidden, ()))
+        }
+    }
+}
+
+/// LeaderOrSubjectLeader guard - allows leader or subject leader users
+pub struct LeaderOrSubjectLeaderUser(pub Claims);
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for LeaderOrSubjectLeaderUser {
+    type Error = ();
+
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        let auth_user = match request.guard::<AuthenticatedUser>().await {
+            Outcome::Success(user) => user,
+            Outcome::Error(e) => return Outcome::Error(e),
+            Outcome::Forward(f) => return Outcome::Forward(f),
+        };
+
+        if has_role(&auth_user, &["leader", "subjectLeader"]) {
+            Outcome::Success(LeaderOrSubjectLeaderUser(auth_user.0))
         } else {
             Outcome::Error((Status::Forbidden, ()))
         }

@@ -41,7 +41,7 @@ const router = createRouter({
       component: Asignaturas,
       meta: { 
         requiresAuth: true,
-        requiresSubjectLeader: true
+        requiresLeaderOrSubjectLeader: true
       }
     },
     {
@@ -56,7 +56,7 @@ const router = createRouter({
       component: Configuracion,
       meta: { 
         requiresAuth: true,
-        requiresAdmin: true  // Solo administradores
+        requiresAdmin: true
       }
     },
   ],
@@ -69,6 +69,7 @@ router.beforeEach(async (to, _from, next) => {
   const requiresAdmin = to.meta.requiresAdmin
   const requiresLeader = to.meta.requiresLeader
   const requiresSubjectLeader = to.meta.requiresSubjectLeader
+  const requiresLeaderOrSubjectLeader = to.meta.requiresLeaderOrSubjectLeader
   const isLoginPage = to.path === '/login'
 
   // Si la ruta no requiere autenticación, permitir acceso
@@ -106,12 +107,27 @@ router.beforeEach(async (to, _from, next) => {
     }
 
     // JWT válido, ahora verificar permisos específicos
-    if ((requiresAdmin && !authStore.isAdmin) || 
-        (requiresLeader && !authStore.isLeader) || 
-        (requiresSubjectLeader && !authStore.isSubjectLeader)) {
-      // No tiene los permisos requeridos
-      console.log('Acceso denegado: permisos insuficientes')
-      next('/dashboard') // Redirigir a dashboard
+    if (requiresAdmin && !authStore.isAdmin) {
+      console.log('Acceso denegado: requiere permisos de Admin')
+      next('/dashboard')
+      return
+    }
+
+    if (requiresLeader && !authStore.isLeader) {
+      console.log('Acceso denegado: requiere permisos de Leader')
+      next('/dashboard')
+      return
+    }
+
+    if (requiresSubjectLeader && !authStore.isSubjectLeader) {
+      console.log('Acceso denegado: requiere permisos de Subject Leader')
+      next('/dashboard')
+      return
+    }
+
+    if (requiresLeaderOrSubjectLeader && !authStore.isLeader && !authStore.isSubjectLeader) {
+      console.log('Acceso denegado: requiere permisos de Leader o Subject Leader')
+      next('/dashboard')
       return
     }
 

@@ -98,6 +98,7 @@
                     Ver
                   </AppButton>
                   <AppButton
+                    v-if="authStore.isLeader"
                     variant="primary"
                     size="sm"
                     @click="editBalance(balance.id)"

@@ -1,8 +1,8 @@
-use crate::utils::jwt::{AdminUser, AuthenticatedUser};
+use crate::utils::jwt::{AdminUser, AuthenticatedUser, LeaderUser, SubjectLeaderUser, LeaderOrSubjectLeaderUser};
 use crate::*;
 use crate::types::{ApiResponse, ApiResponseWithData};
-use crate::usuarios;
-use rocket::{post, get};
+use crate::{usuarios, asignaturas};
+use rocket::{post, get, put, delete};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -105,5 +105,109 @@ pub async fn change_password(
     match utils::db::change_user_password(&db.db, user_id, &password_data.new_password).await {
         Ok(_) => Json(ApiResponse::success("Contraseña cambiada exitosamente".to_string())),
         Err(e) => Json(ApiResponse::error(format!("Error al cambiar la contraseña: {}", e))),
+    }
+}
+
+// ============================================================================
+// ENDPOINTS DE ASIGNATURAS
+// ============================================================================
+
+#[derive(Deserialize)]
+pub struct CreateAsignaturaRequest {
+    pub leader_user_name: String,  // Username del jefe de asignatura
+    pub name: String,
+    pub year: String,
+    pub semester: String,
+}
+
+/// Crear asignatura - Solo Leaders
+/// Los datos de horas y actividades se inicializan en valores por defecto
+#[post("/asignaturas/create", format = "json", data = "<asignatura_data>")]
+pub async fn create_asignatura(
+    asignatura_data: Json<CreateAsignaturaRequest>,
+    db: &State<AppState>,
+    _leader: LeaderUser,
+) -> Json<ApiResponse> {
+    match utils::db::create_asignatura(&db.db, &asignatura_data.into_inner()).await {
+        Ok(_) => Json(ApiResponse::success("Asignatura creada exitosamente".to_string())),
+        Err(e) => Json(ApiResponse::error(format!("Error al crear la asignatura: {}", e))),
+    }
+}
+
+/// Listar asignaturas
+/// - Leader: ve todas las asignaturas
+/// - SubjectLeader: solo ve sus asignaturas (donde leader_id = user_id)
+#[get("/asignaturas/list")]
+pub async fn list_asignaturas(
+    db: &State<AppState>,
+    user: LeaderOrSubjectLeaderUser,
+) -> Json<ApiResponseWithData<Vec<asignaturas::Model>>> {
+    let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
+    let role = &user.0.role;
+
+    match utils::db::list_asignaturas(&db.db, user_id, role).await {
+        Ok(asignaturas) => Json(ApiResponseWithData::success("Asignaturas obtenidas exitosamente".to_string(), asignaturas)),
+        Err(e) => Json(ApiResponseWithData::error(format!("Error al obtener las asignaturas: {}", e))),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct UpdateAsignaturaRequest {
+    pub name: String,
+    pub year: String,
+    pub semester: String,
+    pub c: Option<i32>,
+    pub cp: Option<i32>,
+    pub s: Option<i32>,
+    pub pl: Option<i32>,
+    pub te: Option<i32>,
+    pub t: Option<i32>,
+    pub pp: Option<i32>,
+    pub ec: Option<i32>,
+    pub tc: Option<i32>,
+    pub ef: Option<i32>,
+    pub hours: i32,
+    pub weeks: Option<i32>,
+}
+
+/// Actualizar asignatura - Solo SubjectLeaders (para sus asignaturas)
+#[put("/asignaturas/update/<asignatura_id>", format = "json", data = "<asignatura_data>")]
+pub async fn update_asignatura(
+    asignatura_id: i32,
+    asignatura_data: Json<UpdateAsignaturaRequest>,
+    db: &State<AppState>,
+    user: SubjectLeaderUser,
+) -> Json<ApiResponse> {
+    let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
+
+    // Verificar que el SubjectLeader sea el dueño de la asignatura
+    match utils::db::update_asignatura(&db.db, asignatura_id, user_id, &asignatura_data.into_inner()).await {
+        Ok(_) => Json(ApiResponse::success("Asignatura actualizada exitosamente".to_string())),
+        Err(e) => Json(ApiResponse::error(format!("Error al actualizar la asignatura: {}", e))),
+    }
+}
+
+/// Eliminar asignatura - Solo Leaders
+#[delete("/asignaturas/delete/<asignatura_id>")]
+pub async fn delete_asignatura(
+    asignatura_id: i32,
+    db: &State<AppState>,
+    _leader: LeaderUser,
+) -> Json<ApiResponse> {
+    match utils::db::delete_asignatura(&db.db, asignatura_id).await {
+        Ok(_) => Json(ApiResponse::success("Asignatura eliminada exitosamente".to_string())),
+        Err(e) => Json(ApiResponse::error(format!("Error al eliminar la asignatura: {}", e))),
+    }
+}
+
+/// Listar jefes de asignatura - Solo Leaders (para el selector al crear)
+#[get("/users/subject_leaders")]
+pub async fn list_subject_leaders(
+    db: &State<AppState>,
+    _leader: LeaderUser,
+) -> Json<ApiResponseWithData<Vec<usuarios::Model>>> {
+    match utils::db::list_subject_leaders(&db.db).await {
+        Ok(leaders) => Json(ApiResponseWithData::success("Jefes de asignatura obtenidos exitosamente".to_string(), leaders)),
+        Err(e) => Json(ApiResponseWithData::error(format!("Error al obtener jefes de asignatura: {}", e))),
     }
 }

@@ -7,12 +7,12 @@ Sistema web para gestión de carga docente en Facultad de Ciberseguridad - Rust 
 **Stack**: Rust backend (Rocket 0.5.1 + SeaORM 1.1.17) + Vue 3/TypeScript frontend + PostgreSQL
 - Backend: Port 8000, serves API (`/api/*`) and static files in production
 - Frontend: Port 5173 (dev), Vite proxies `/api/*` to backend
-- Auth: HttpOnly JWT cookies with IP validation (24h expiration)
+- Auth: HttpOnly JWT cookies with IP validation (3h expiration)
 - State: Pinia stores (`auth`, `balance`, `asignaturas`, `users`)
 
 **Data Flow Pattern**: Frontend Pinia store → Service layer (`services/*.ts`) → Backend API (`routes/*.rs`) → SeaORM → PostgreSQL
 
-**Critical Design Decision**: Balance calculations stored **client-side only** (localStorage). `backend/src/database/balance.rs` entity exists but balances are NOT persisted to DB - only `asignaturas` and `usuarios` tables are active.
+**Critical Design Decision**: Balance calculations stored **client-side only** (localStorage). `backend/src/database/balance.rs` entity exists but balances are NOT persisted to DB - only `asignaturas` and `usuarios` tables are active. Balance data uses 79-cell grid (15 weeks × 4 days + consultation week + exams).
 
 ## Database Schema
 
@@ -41,8 +41,9 @@ sea-orm-cli generate entity -o src/database --with-serde both
 
 **Security Notes**:
 - JWT secret from `.env` `JWT_SECRET` (required, loaded via `once_cell::sync::Lazy`)
-- Cookie flags: `http_only=false` (potential security issue), `same_site=Lax`, `secure=true`, `max_age=24h`
+- Cookie flags: `http_only=true`, `same_site=Lax`, `secure=true`, `max_age=3h` (10800s)
 - IP validation in `decode_jwt()` compares `claims.ip` with `request.remote()` address
+- Passwords hashed with bcrypt (cost=12)
 
 ## Frontend Patterns
 
@@ -107,7 +108,7 @@ psql -d balance_carga -c "INSERT INTO usuarios (user_name, name, email, token, r
 **Route Mounting** (`lib.rs`):
 - All API routes under `/api` prefix via `rocket::mount("/api", routes![...])`
 - Static files from `../frontend/src` (debug) or `../frontend/dist` (release)
-- Catch unauthorized: `#[catch(401)]` returns HTML alert + redirect
+- Catch unauthorized: `#[catch(401)]` catcher returns HTML alert + redirect to login
 
 **CORS Config** (`utils/cors.rs`): 
 - Dev: Allows `http://localhost:5173` with credentials
@@ -139,3 +140,11 @@ psql -d balance_carga -c "INSERT INTO usuarios (user_name, name, email, token, r
 - Distribution types: C (Conference), CP (Practical Conference), S (Seminar), PL (Lab Practice), TE (Thesis), T (Tutorial), PP (Pre-Professional), EC/TC (Exam Committees), EF (Final Exam)
 
 **Subject Hours**: Integer columns per activity type (`asignaturas` table), total stored in `hours` column
+
+## Profile Management
+
+**User Profile Update**: 
+- Any authenticated user can update their own profile via `POST /api/update_profile` (name, email)
+- Password change via `POST /api/change_password` (new_password)
+- Both endpoints use `AuthenticatedUser` guard, extract user ID from JWT claims
+- See `routes/manager.rs` for implementation details
