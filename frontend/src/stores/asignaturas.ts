@@ -7,33 +7,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import AsignaturasService, { 
+  type Asignatura,
   type CreateAsignaturaData,
   type UpdateAsignaturaData,
   type SubjectLeader
 } from '../services/asignaturas'
 
-// Tipo de asignatura para el frontend (compatible con backend)
-export interface Asignatura {
-  id: number
-  leader_id: number
-  name: string
-  year: string
-  semester: string
-  c: number | null
-  cp: number | null
-  s: number | null
-  pl: number | null
-  te: number | null
-  t: number | null
-  pp: number | null
-  ec: number | null
-  tc: number | null
-  ef: number | null
-  hours: number
-  weeks: number | null
-  date_start: string
-  date_end: string
-}
+// Re-export Asignatura type for consumers of this store
+export type { Asignatura }
 
 export const useAsignaturasStore = defineStore('asignaturas', () => {
   // State
