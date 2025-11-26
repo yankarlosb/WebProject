@@ -4,6 +4,7 @@ use web_project::run;
 
 #[launch]
 async fn rocket() -> _ {
-    println!("admin token: {}", bcrypt::hash("admin", 12).unwrap());
+    // Removed bcrypt hash on startup - this was slow and unnecessary for production
+    // To generate a password hash, use: cargo run --example hash_password
     run().await
 }

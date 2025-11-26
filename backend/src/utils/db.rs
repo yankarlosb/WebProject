@@ -55,15 +55,13 @@ pub async fn delete_user(db: &DatabaseConnection, user_id: i32) -> Result<(), se
 }
 
 pub async fn list_users(db: &DatabaseConnection) -> Result<Vec<usuarios::Model>, sea_orm::DbErr> {
-    use sea_orm::EntityTrait;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
+    // Filter at database level instead of fetching all and filtering in memory
     let users = usuarios::Entity::find()
+        .filter(usuarios::Column::Role.ne("admin"))
         .all(db)
-        .await?
-        .iter()
-        .filter(|user| user.role != Some("admin".to_string()))
-        .cloned()
-        .collect::<Vec<_>>();
+        .await?;
     Ok(users)
 }
 
