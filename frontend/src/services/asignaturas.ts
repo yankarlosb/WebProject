@@ -84,7 +84,6 @@ const AsignaturasService = {
    */
   async getAsignaturas(): Promise<Asignatura[]> {
     const url = getApiUrl('/api/asignaturas/list')
-    console.log('[AsignaturasService] Llamando a:', url)
     
     const response = await fetch(url, {
       method: 'GET',
@@ -93,13 +92,8 @@ const AsignaturasService = {
         'Content-Type': 'application/json',
       },
     })
-
-    console.log('[AsignaturasService] Response status:', response.status)
-    console.log('[AsignaturasService] Response headers:', response.headers)
     
     if (!response.ok) {
-      const text = await response.text()
-      console.error('[AsignaturasService] Error response:', text)
       throw new Error('Error al obtener las asignaturas')
     }
 
@@ -188,7 +182,6 @@ const AsignaturasService = {
    */
   async getSubjectLeaders(): Promise<SubjectLeader[]> {
     const url = getApiUrl('/api/users/subject_leaders')
-    console.log('[AsignaturasService] Llamando a subject_leaders:', url)
     
     const response = await fetch(url, {
       method: 'GET',
@@ -197,12 +190,8 @@ const AsignaturasService = {
         'Content-Type': 'application/json',
       },
     })
-
-    console.log('[AsignaturasService] Subject leaders response status:', response.status)
     
     if (!response.ok) {
-      const text = await response.text()
-      console.error('[AsignaturasService] Subject leaders error:', text)
       throw new Error('Error al obtener los jefes de asignatura')
     }
 

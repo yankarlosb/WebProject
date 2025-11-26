@@ -148,12 +148,12 @@
               <button
                 v-for="asignatura in asignaturasStore.asignaturasList"
                 :key="asignatura.id"
-                @click="addExistingSubject(asignatura.nombre)"
+                @click="addExistingSubject(asignatura.name)"
                 class="w-full px-4 py-3 text-left hover:bg-blue-50 transition flex items-center justify-between"
               >
                 <div>
-                  <div class="font-medium text-gray-900">{{ asignatura.nombre }}</div>
-                  <div class="text-xs text-gray-500">{{ asignatura.periodo }}</div>
+                  <div class="font-medium text-gray-900">{{ asignatura.name }}</div>
+                  <div class="text-xs text-gray-500">{{ asignatura.semester }}</div>
                 </div>
                 <svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />

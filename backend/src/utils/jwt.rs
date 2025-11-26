@@ -83,8 +83,6 @@ pub fn decode_jwt(token: &str, remote_addr: Option<SocketAddr>) -> Result<Claims
         ));
     }
 
-    println!("Token decodificado correctamente: {:?}", token_data.claims);
-
     Ok(token_data.claims)
 }
 

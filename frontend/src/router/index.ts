@@ -72,41 +72,38 @@ router.beforeEach(async (to, _from, next) => {
   const requiresLeaderOrSubjectLeader = to.meta.requiresLeaderOrSubjectLeader
   const isLoginPage = to.path === '/login'
 
-  // Si la ruta no requiere autenticación, permitir acceso
+  // If the route doesn't require auth and is not login page, allow access
   if (!requiresAuth && !isLoginPage) {
     next()
     return
   }
 
-  // Intentando acceder a login
+  // Check authentication once upfront
+  const isValid = await authStore.checkAuth()
+
+  // Attempting to access login page
   if (isLoginPage) {
-    // Verificar si hay sesión activa (JWT válido en cookie)
-    const isValid = await authStore.checkAuth()
-    
     if (isValid) {
-      // Ya está autenticado, redirigir a dashboard
+      // Already authenticated, redirect to dashboard
       console.log('Usuario ya autenticado, redirigiendo a dashboard')
       next('/dashboard')
     } else {
-      // No hay sesión válida, permitir acceso a login
+      // No valid session, allow access to login
       next()
     }
     return
   }
 
-  // Ruta requiere autenticación
+  // Route requires authentication
   if (requiresAuth) {
-    // Siempre verificar con backend primero (valida JWT en cookie)
-    const isValid = await authStore.checkAuth()
-    
     if (!isValid) {
-      // JWT inválido, expirado o no existe, redirigir a login
+      // JWT invalid, expired or doesn't exist, redirect to login
       console.log('Token JWT inválido o expirado')
       next('/login')
       return
     }
 
-    // JWT válido, ahora verificar permisos específicos
+    // JWT valid, now check specific permissions
     if (requiresAdmin && !authStore.isAdmin) {
       console.log('Acceso denegado: requiere permisos de Admin')
       next('/dashboard')
@@ -131,7 +128,7 @@ router.beforeEach(async (to, _from, next) => {
       return
     }
 
-    // Autenticado y con permisos correctos
+    // Authenticated and with correct permissions
     next()
   } else {
     next()
