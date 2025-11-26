@@ -6,7 +6,7 @@
 import { httpGet, httpPost } from './http'
 import type { UserWithToken } from '../types'
 
-// Re-export for backward compatibility
+// In admin context, users always include token from database
 export type User = UserWithToken
 
 export interface CreateUserRequest {

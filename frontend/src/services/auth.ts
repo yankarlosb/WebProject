@@ -1,4 +1,4 @@
-import { getApiUrl } from '../config/api'
+import { getApiUrl, API_CONFIG } from '../config/api'
 import type { User } from '../types'
 
 // Re-export User type for backward compatibility
@@ -46,7 +46,7 @@ export class AuthService {
    */
   static async login(username: string, password: string): Promise<AuthResponse> {
     try {
-      const response = await authRequest('/api/login', 'POST', { username, password })
+      const response = await authRequest(API_CONFIG.ENDPOINTS.LOGIN, 'POST', { username, password })
       const data = await response.json()
 
       // Verificar si el login fue exitoso
@@ -77,7 +77,7 @@ export class AuthService {
    */
   static async checkAuth(): Promise<{ isAuthenticated: boolean; user?: User }> {
     try {
-      const response = await authRequest('/api/verify', 'GET')
+      const response = await authRequest(API_CONFIG.ENDPOINTS.VERIFY, 'GET')
 
       if (response.ok) {
         const data: VerifyResponse = await response.json()
@@ -113,7 +113,7 @@ export class AuthService {
   static async logout(): Promise<{ success: boolean; message?: string }> {
     try {
       // Intentar logout en backend
-      const response = await authRequest('/api/logout', 'POST')
+      const response = await authRequest(API_CONFIG.ENDPOINTS.LOGOUT, 'POST')
 
       if (!response.ok) {
         console.warn('Logout en backend falló, pero limpiando frontend')
