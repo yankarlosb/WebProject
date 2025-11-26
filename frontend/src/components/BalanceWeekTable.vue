@@ -176,17 +176,16 @@ const colorClasses = {
   }
 } as const
 
-// Single computed to get all color classes at once - more efficient than multiple computeds
-const schemeColors = computed(() => colorClasses[props.colorScheme])
-
-const borderColorClass = computed(() => schemeColors.value.border)
-const headerColorClass = computed(() => schemeColors.value.header)
-const headerBadgeColorClass = computed(() => schemeColors.value.headerBadge)
-const tableHeaderColorClass = computed(() => schemeColors.value.tableHeader)
-const headerTextColorClass = computed(() => schemeColors.value.headerText)
-const rowHoverColorClass = computed(() => schemeColors.value.rowHover)
-const focusRingClass = computed(() => schemeColors.value.focusRing)
-const cellFilledClass = computed(() => schemeColors.value.cellFilled)
+// Direct property access from colorClasses for template usage
+// Each computed directly accesses the static object with the dynamic color scheme
+const borderColorClass = computed(() => colorClasses[props.colorScheme].border)
+const headerColorClass = computed(() => colorClasses[props.colorScheme].header)
+const headerBadgeColorClass = computed(() => colorClasses[props.colorScheme].headerBadge)
+const tableHeaderColorClass = computed(() => colorClasses[props.colorScheme].tableHeader)
+const headerTextColorClass = computed(() => colorClasses[props.colorScheme].headerText)
+const rowHoverColorClass = computed(() => colorClasses[props.colorScheme].rowHover)
+const focusRingClass = computed(() => colorClasses[props.colorScheme].focusRing)
+const cellFilledClass = computed(() => colorClasses[props.colorScheme].cellFilled)
 </script>
 
 <style scoped>

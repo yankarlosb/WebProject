@@ -78,10 +78,20 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
 
-  // Only call checkAuth if not already authenticated or when accessing protected routes
-  // This avoids unnecessary API calls when already logged in and navigating
-  const needsAuthCheck = !authStore.isAuthenticated || isLoginPage
-  const isValid = needsAuthCheck ? await authStore.checkAuth() : authStore.isAuthenticated
+  // Check auth when:
+  // 1. Not currently marked as authenticated (need to verify)
+  // 2. Accessing login page (need to redirect if already logged in)
+  // 3. Accessing protected route while not authenticated in store
+  const shouldVerifyAuth = !authStore.isAuthenticated || isLoginPage
+  
+  let isValid: boolean
+  if (shouldVerifyAuth) {
+    isValid = await authStore.checkAuth()
+  } else {
+    // Already authenticated in store, trust the cached state for navigation
+    // The JWT validation happens on the backend for actual API calls
+    isValid = true
+  }
 
   // Attempting to access login page
   if (isLoginPage) {
