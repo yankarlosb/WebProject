@@ -118,115 +118,48 @@ fn has_role(auth_user: &AuthenticatedUser, allowed_roles: &[&str]) -> bool {
     allowed_roles.contains(&auth_user.0.role.as_str())
 }
 
-/// User guard - accepts any authenticated user with a valid role
-pub struct User(pub Claims);
+/// Macro to generate role-based request guards
+/// Reduces code duplication by generating the boilerplate for each role guard
+macro_rules! impl_role_guard {
+    ($guard_name:ident, [$($role:expr),+]) => {
+        pub struct $guard_name(pub Claims);
 
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for User {
-    type Error = ();
+        #[rocket::async_trait]
+        impl<'r> FromRequest<'r> for $guard_name {
+            type Error = ();
 
-    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let auth_user = match request.guard::<AuthenticatedUser>().await {
-            Outcome::Success(user) => user,
-            Outcome::Error(e) => return Outcome::Error(e),
-            Outcome::Forward(f) => return Outcome::Forward(f),
-        };
+            async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+                let auth_user = match request.guard::<AuthenticatedUser>().await {
+                    Outcome::Success(user) => user,
+                    Outcome::Error(e) => return Outcome::Error(e),
+                    Outcome::Forward(f) => return Outcome::Forward(f),
+                };
 
-        if has_role(&auth_user, &["admin", "leader", "subjectLeader", "user"]) {
-            Outcome::Success(User(auth_user.0))
-        } else {
-            Outcome::Error((Status::Forbidden, ()))
+                if has_role(&auth_user, &[$($role),+]) {
+                    Outcome::Success($guard_name(auth_user.0))
+                } else {
+                    Outcome::Error((Status::Forbidden, ()))
+                }
+            }
         }
-    }
+    };
 }
 
-/// Admin guard - only allows admin users
-pub struct AdminUser(pub Claims);
+// Generate role guards using the macro
+// User guard - accepts any authenticated user with a valid role
+impl_role_guard!(User, ["admin", "leader", "subjectLeader", "user"]);
 
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for AdminUser {
-    type Error = ();
+// Admin guard - only allows admin users
+impl_role_guard!(AdminUser, ["admin"]);
 
-    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let auth_user = match request.guard::<AuthenticatedUser>().await {
-            Outcome::Success(user) => user,
-            Outcome::Error(e) => return Outcome::Error(e),
-            Outcome::Forward(f) => return Outcome::Forward(f),
-        };
+// Leader guard - only allows leader users
+impl_role_guard!(LeaderUser, ["leader"]);
 
-        if has_role(&auth_user, &["admin"]) {
-            Outcome::Success(AdminUser(auth_user.0))
-        } else {
-            Outcome::Error((Status::Forbidden, ()))
-        }
-    }
-}
+// SubjectLeader guard - only allows subject leader users
+impl_role_guard!(SubjectLeaderUser, ["subjectLeader"]);
 
-/// Leader guard - only allows leader users
-pub struct LeaderUser(pub Claims);
-
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for LeaderUser {
-    type Error = ();
-
-    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let auth_user = match request.guard::<AuthenticatedUser>().await {
-            Outcome::Success(user) => user,
-            Outcome::Error(e) => return Outcome::Error(e),
-            Outcome::Forward(f) => return Outcome::Forward(f),
-        };
-
-        if has_role(&auth_user, &["leader"]) {
-            Outcome::Success(LeaderUser(auth_user.0))
-        } else {
-            Outcome::Error((Status::Forbidden, ()))
-        }
-    }
-}
-
-/// SubjectLeader guard - only allows subject leader users
-pub struct SubjectLeaderUser(pub Claims);
-
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for SubjectLeaderUser {
-    type Error = ();
-
-    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let auth_user = match request.guard::<AuthenticatedUser>().await {
-            Outcome::Success(user) => user,
-            Outcome::Error(e) => return Outcome::Error(e),
-            Outcome::Forward(f) => return Outcome::Forward(f),
-        };
-
-        if has_role(&auth_user, &["subjectLeader"]) {
-            Outcome::Success(SubjectLeaderUser(auth_user.0))
-        } else {
-            Outcome::Error((Status::Forbidden, ()))
-        }
-    }
-}
-
-/// LeaderOrSubjectLeader guard - allows leader or subject leader users
-pub struct LeaderOrSubjectLeaderUser(pub Claims);
-
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for LeaderOrSubjectLeaderUser {
-    type Error = ();
-
-    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
-        let auth_user = match request.guard::<AuthenticatedUser>().await {
-            Outcome::Success(user) => user,
-            Outcome::Error(e) => return Outcome::Error(e),
-            Outcome::Forward(f) => return Outcome::Forward(f),
-        };
-
-        if has_role(&auth_user, &["leader", "subjectLeader"]) {
-            Outcome::Success(LeaderOrSubjectLeaderUser(auth_user.0))
-        } else {
-            Outcome::Error((Status::Forbidden, ()))
-        }
-    }
-}
+// LeaderOrSubjectLeader guard - allows leader or subject leader users
+impl_role_guard!(LeaderOrSubjectLeaderUser, ["leader", "subjectLeader"]);
 
 // RESPUESTAS JSON PARA AUTENTICACIÓN
 #[derive(Serialize, Deserialize)]
