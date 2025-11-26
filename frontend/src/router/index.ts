@@ -78,14 +78,25 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
 
-  // Check authentication once upfront
-  const isValid = await authStore.checkAuth()
+  // Check auth when:
+  // 1. Not currently marked as authenticated (need to verify)
+  // 2. Accessing login page (need to redirect if already logged in)
+  // 3. Accessing protected route while not authenticated in store
+  const shouldVerifyAuth = !authStore.isAuthenticated || isLoginPage
+  
+  let isValid: boolean
+  if (shouldVerifyAuth) {
+    isValid = await authStore.checkAuth()
+  } else {
+    // Already authenticated in store, trust the cached state for navigation
+    // The JWT validation happens on the backend for actual API calls
+    isValid = true
+  }
 
   // Attempting to access login page
   if (isLoginPage) {
     if (isValid) {
       // Already authenticated, redirect to dashboard
-      console.log('Usuario ya autenticado, redirigiendo a dashboard')
       next('/dashboard')
     } else {
       // No valid session, allow access to login
@@ -98,32 +109,27 @@ router.beforeEach(async (to, _from, next) => {
   if (requiresAuth) {
     if (!isValid) {
       // JWT invalid, expired or doesn't exist, redirect to login
-      console.log('Token JWT inválido o expirado')
       next('/login')
       return
     }
 
     // JWT valid, now check specific permissions
     if (requiresAdmin && !authStore.isAdmin) {
-      console.log('Acceso denegado: requiere permisos de Admin')
       next('/dashboard')
       return
     }
 
     if (requiresLeader && !authStore.isLeader) {
-      console.log('Acceso denegado: requiere permisos de Leader')
       next('/dashboard')
       return
     }
 
     if (requiresSubjectLeader && !authStore.isSubjectLeader) {
-      console.log('Acceso denegado: requiere permisos de Subject Leader')
       next('/dashboard')
       return
     }
 
     if (requiresLeaderOrSubjectLeader && !authStore.isLeader && !authStore.isSubjectLeader) {
-      console.log('Acceso denegado: requiere permisos de Leader o Subject Leader')
       next('/dashboard')
       return
     }

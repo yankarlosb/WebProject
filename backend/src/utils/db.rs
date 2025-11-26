@@ -106,27 +106,27 @@ async fn update_user_fields(
     Ok(())
 }
 
-/// Update profile - simplified wrapper for change_profile
+/// Update profile - updates only name and email directly without redundant query
 pub async fn update_profile(
     db: &DatabaseConnection,
     user_id: i32,
     name: &str,
     email: &str,
 ) -> Result<(), sea_orm::DbErr> {
-    use sea_orm::EntityTrait;
+    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
     
-    // Get current user data
-    let mut user = usuarios::Entity::find_by_id(user_id)
+    // Get user and update directly in one operation instead of calling change_profile
+    let user = usuarios::Entity::find_by_id(user_id)
         .one(db)
         .await?
         .ok_or(sea_orm::DbErr::RecordNotFound("Usuario no encontrado".to_string()))?;
     
-    // Update only name and email
-    user.name = name.to_string();
-    user.email = email.to_string();
+    let mut user_active: ActiveModel = user.into();
+    user_active.name = Set(name.to_string());
+    user_active.email = Set(email.to_string());
+    user_active.update(db).await?;
     
-    // Use existing change_profile which won't modify role
-    change_profile(db, user_id, user).await
+    Ok(())
 }
 
 /// Change user password - simple update without verification

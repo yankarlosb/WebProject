@@ -142,7 +142,7 @@ function handleSelectChange(subjectId: string, cellIndex: number, event: Event) 
 const totalCells = computed(() => props.weeks.length * props.columnsPerWeek)
 const cellsPerSubject = computed(() => totalCells.value)
 
-// Color classes based on scheme
+// Color classes based on scheme - defined as const to avoid recreation
 const colorClasses = {
   blue: {
     border: 'border-blue-200',
@@ -174,8 +174,10 @@ const colorClasses = {
     focusRing: 'focus:ring-green-500 focus:border-green-500',
     cellFilled: 'bg-green-50'
   }
-}
+} as const
 
+// Direct property access from colorClasses for template usage
+// Each computed directly accesses the static object with the dynamic color scheme
 const borderColorClass = computed(() => colorClasses[props.colorScheme].border)
 const headerColorClass = computed(() => colorClasses[props.colorScheme].header)
 const headerBadgeColorClass = computed(() => colorClasses[props.colorScheme].headerBadge)

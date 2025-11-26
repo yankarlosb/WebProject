@@ -313,12 +313,16 @@ export const useBalanceStore = defineStore('balance', () => {
 
   /**
    * Calcular totales y coeficientes para cada asignatura
+   * Optimized to use a Set for faster lookups
    */
   function calculateAll() {
     if (!currentBalance.value) return
 
+    // Use a Set for O(1) lookup instead of checking each value against counts object
+    const validTypes = new Set(['C', 'CP', 'S', 'PL', 'TE', 'T', 'PP'])
+
     calculations.value = currentBalance.value.subjects.map(subject => {
-      // Contar cada tipo de actividad
+      // Initialize counts with explicit type
       const counts = {
         C: 0,
         CP: 0,
@@ -330,12 +334,14 @@ export const useBalanceStore = defineStore('balance', () => {
       }
       
       let total = 0
-      subject.values.forEach(val => {
-        if (typeof val === 'string' && val in counts) {
+      
+      // Single pass through values with optimized type checking
+      for (const val of subject.values) {
+        if (typeof val === 'string' && validTypes.has(val)) {
           counts[val as keyof typeof counts]++
           total++
         }
-      })
+      }
       
       return {
         subjectId: subject.id,
@@ -348,7 +354,7 @@ export const useBalanceStore = defineStore('balance', () => {
         TE: counts.TE,
         T: counts.T,
         PP: counts.PP,
-        coef: parseFloat((total * 1.2).toFixed(2)),
+        coef: Math.round(total * 1.2 * 100) / 100, // Faster than parseFloat/toFixed
       }
     })
   }
