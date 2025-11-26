@@ -142,7 +142,7 @@ function handleSelectChange(subjectId: string, cellIndex: number, event: Event) 
 const totalCells = computed(() => props.weeks.length * props.columnsPerWeek)
 const cellsPerSubject = computed(() => totalCells.value)
 
-// Color classes based on scheme
+// Color classes based on scheme - defined as const to avoid recreation
 const colorClasses = {
   blue: {
     border: 'border-blue-200',
@@ -174,16 +174,19 @@ const colorClasses = {
     focusRing: 'focus:ring-green-500 focus:border-green-500',
     cellFilled: 'bg-green-50'
   }
-}
+} as const
 
-const borderColorClass = computed(() => colorClasses[props.colorScheme].border)
-const headerColorClass = computed(() => colorClasses[props.colorScheme].header)
-const headerBadgeColorClass = computed(() => colorClasses[props.colorScheme].headerBadge)
-const tableHeaderColorClass = computed(() => colorClasses[props.colorScheme].tableHeader)
-const headerTextColorClass = computed(() => colorClasses[props.colorScheme].headerText)
-const rowHoverColorClass = computed(() => colorClasses[props.colorScheme].rowHover)
-const focusRingClass = computed(() => colorClasses[props.colorScheme].focusRing)
-const cellFilledClass = computed(() => colorClasses[props.colorScheme].cellFilled)
+// Single computed to get all color classes at once - more efficient than multiple computeds
+const schemeColors = computed(() => colorClasses[props.colorScheme])
+
+const borderColorClass = computed(() => schemeColors.value.border)
+const headerColorClass = computed(() => schemeColors.value.header)
+const headerBadgeColorClass = computed(() => schemeColors.value.headerBadge)
+const tableHeaderColorClass = computed(() => schemeColors.value.tableHeader)
+const headerTextColorClass = computed(() => schemeColors.value.headerText)
+const rowHoverColorClass = computed(() => schemeColors.value.rowHover)
+const focusRingClass = computed(() => schemeColors.value.focusRing)
+const cellFilledClass = computed(() => schemeColors.value.cellFilled)
 </script>
 
 <style scoped>

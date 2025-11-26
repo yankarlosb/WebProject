@@ -30,14 +30,22 @@ export function useBalanceForm() {
     try {
       const balanceId = route.query.id as string
       
-      if (balanceId) {
-        // Cargar balance existente desde la API
-        const loaded = await balanceStore.loadBalance(parseInt(balanceId, 10))
-        if (!loaded) {
-          uiStore.showWarning('No se pudo cargar el balance')
-          balanceStore.createNewBalance()
-        }
-      } else {
+      // Load balance and asignaturas in parallel for better performance
+      const loadBalancePromise = balanceId
+        ? balanceStore.loadBalance(parseInt(balanceId, 10))
+        : Promise.resolve(false)
+      
+      // Only load asignaturas if not already loaded
+      const loadAsignaturasPromise = asignaturasStore.asignaturas.length === 0
+        ? asignaturasStore.loadAsignaturas()
+        : Promise.resolve({ success: true })
+
+      const [loaded] = await Promise.all([loadBalancePromise, loadAsignaturasPromise])
+      
+      if (balanceId && !loaded) {
+        uiStore.showWarning('No se pudo cargar el balance')
+        balanceStore.createNewBalance()
+      } else if (!balanceId) {
         // Crear nuevo balance vacío
         balanceStore.createNewBalance()
       }

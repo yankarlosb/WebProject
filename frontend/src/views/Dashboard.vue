@@ -200,7 +200,11 @@ const stats = ref({
 })
 
 onMounted(async () => {
-  await loadBalances()
+  // Load balances and asignaturas in parallel for better performance
+  await Promise.all([
+    loadBalances(),
+    asignaturasStore.asignaturas.length === 0 ? asignaturasStore.loadAsignaturas() : Promise.resolve()
+  ])
 })
 
 async function loadBalances() {
