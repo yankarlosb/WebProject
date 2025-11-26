@@ -430,7 +430,7 @@ const createForm = ref<CreateForm>(getDefaultCreateForm())
 
 const editForm = ref<EditForm>(getDefaultEditForm())
 
-const errors = ref({ name: '', leader: '' })
+const errors = ref(getDefaultErrors())
 
 // Computed
 const asignaturasFiltradas = computed(() => {
@@ -509,7 +509,7 @@ function closeModal() {
 
 async function handleSave() {
   // Validación
-  errors.value = { name: '', leader: '' }
+  errors.value = getDefaultErrors()
   
   if (isEditing.value) {
     // Validar formulario de edición
