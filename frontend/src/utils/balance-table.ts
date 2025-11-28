@@ -8,14 +8,19 @@
  * Converts legacy numeric values to string or returns string as-is.
  * Used for rendering cell values in balance tables.
  * 
- * @param value - Cell value that could be number (legacy) or string (current)
- * @returns Empty string for falsy/legacy values, or the string value
+ * Legacy numeric values (from older data format where 0 meant empty and 
+ * positive integers represented activity counts) are converted to empty 
+ * strings since the current format uses string codes ('C', 'CP', etc.).
+ * 
+ * @param value - Cell value that could be number (legacy format) or string (current format)
+ * @returns Empty string for falsy/legacy numeric values, or the string value
  */
 export function getCellValue(value: number | string | undefined): string {
   if (value === undefined || value === null || value === 0 || value === '') {
     return ''
   }
-  // Legacy numeric values are treated as empty (migration support)
+  // Legacy numeric values (positive integers from old format) are treated as empty
+  // Current format uses string codes: 'C', 'CP', 'S', 'PL', 'T', 'TE', 'PP'
   if (typeof value === 'number') {
     return ''
   }
@@ -136,7 +141,7 @@ export function generateWeekGroups(totalWeeks: number, groupSize: number = 4): W
       start,
       end,
       weeks,
-      startIndex: i * 4, // 4 cells per week (L, M, X, J)
+      startIndex: i * 4, // 4 cells per week (Monday, Tuesday, Wednesday, Thursday)
     })
   }
   
