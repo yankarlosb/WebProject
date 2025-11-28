@@ -22,21 +22,10 @@
           <h3 class="text-lg font-semibold text-gray-800 mb-4">Filtros</h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Año Académico</label>
-              <select v-model="filters.academicYear" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                <option value="">Todos</option>
-                <option v-for="year in availableYears" :key="year" :value="year">{{ year }}</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Año de Carrera</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Curso Académico</label>
               <select v-model="filters.academicYearText" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 <option value="">Todos</option>
-                <option value="1ro">1ro</option>
-                <option value="2do">2do</option>
-                <option value="3ro">3ro</option>
-                <option value="4to">4to</option>
+                <option v-for="year in availableAcademicYears" :key="year" :value="year">{{ year }}</option>
               </select>
             </div>
 
@@ -44,8 +33,8 @@
               <label class="block text-sm font-medium text-gray-700 mb-1">Período</label>
               <select v-model="filters.period" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 <option value="">Todos</option>
-                <option :value="1">1er Semestre</option>
-                <option :value="2">2do Semestre</option>
+                <option value="1ero">1er Semestre</option>
+                <option value="2do">2do Semestre</option>
               </select>
             </div>
 
@@ -96,17 +85,27 @@
             </div>
             <div class="space-y-1 text-sm text-gray-600 mb-4">
               <p><span class="font-medium">Año Académico:</span> {{ balance.academic_year }}</p>
-              <p><span class="font-medium">Año de Carrera:</span> {{ balance.academic_year_text }}</p>
-              <p><span class="font-medium">Período:</span> {{ balance.period === 1 ? '1er Semestre' : '2do Semestre' }}</p>
+              <p><span class="font-medium">Curso:</span> {{ balance.academic_year_text }}</p>
+              <p><span class="font-medium">Período:</span> {{ balance.period === '1ero' ? '1er Semestre' : '2do Semestre' }}</p>
               <p><span class="font-medium">Asignaturas:</span> {{ balance.subjects?.length || 0 }}</p>
             </div>
-            <div class="border-t border-gray-100 pt-3">
+            <div class="border-t border-gray-100 pt-3 flex justify-between items-center">
               <span class="text-blue-600 font-medium text-sm flex items-center">
                 Ver detalles
                 <svg class="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                 </svg>
               </span>
+              <button
+                v-if="authStore.isLeader"
+                @click="confirmDeleteBalance(balance, $event)"
+                class="text-red-600 hover:text-red-800 hover:bg-red-50 p-1.5 rounded-lg transition-colors"
+                title="Eliminar balance"
+              >
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -166,7 +165,7 @@
                 {{ balance.academic_year_text }}
               </span>
               <span class="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full">
-                {{ balance.period === 1 ? '1er Semestre' : '2do Semestre' }}
+                {{ balance.period === '1ero' ? '1er Semestre' : '2do Semestre' }}
               </span>
               <span class="bg-orange-100 text-orange-800 text-sm font-medium px-3 py-1 rounded-full">
                 {{ balance.weeks }} semanas
@@ -255,9 +254,13 @@ import AppTabs from '@/components/AppTabs.vue'
 import BalanceViewTable from '@/components/BalanceViewTable.vue'
 import BalanceViewFinalTable from '@/components/BalanceViewFinalTable.vue'
 import { balancesService, type Balance } from '@/services/balances'
+import { useAuthStore } from '@/stores/auth'
+import { useUIStore } from '@/stores/ui'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
+const uiStore = useUIStore()
 
 // Estado general
 const loading = ref(false)
@@ -269,26 +272,24 @@ const selectedBalanceId = ref<number | null>(null)
 const loadingDetail = ref(false)
 const errorDetail = ref('')
 const balance = ref<Balance | null>(null)
-const activeSubjectTab = ref(-1) // -1 = "Todas"
+const activeSubjectTab = ref('all') // 'all' = "Todas", o índice como string
 
 // Filtros
 const filters = ref({
-  academicYear: '',
   academicYearText: '',
-  period: '' as '' | number,
+  period: '',
   weeks: '' as '' | number
 })
 
-// Años disponibles para filtrar
-const availableYears = computed(() => {
-  const years = new Set(balances.value.map((b: Balance) => b.academic_year))
+// Cursos académicos disponibles para filtrar (ej: 2024-2025)
+const availableAcademicYears = computed(() => {
+  const years = new Set(balances.value.map((b: Balance) => b.academic_year_text))
   return Array.from(years).sort().reverse() as string[]
 })
 
 // Balances filtrados
 const filteredBalances = computed(() => {
   return balances.value.filter((b: Balance) => {
-    if (filters.value.academicYear && b.academic_year !== filters.value.academicYear) return false
     if (filters.value.academicYearText && b.academic_year_text !== filters.value.academicYearText) return false
     if (filters.value.period && b.period !== filters.value.period) return false
     if (filters.value.weeks && b.weeks !== filters.value.weeks) return false
@@ -300,9 +301,9 @@ const filteredBalances = computed(() => {
 const subjectTabs = computed(() => {
   if (!balance.value?.subjects) return []
   const tabs = [
-    { id: -1, label: 'Todas', icon: '📋' },
+    { id: 'all', label: 'Todas', icon: '📋' },
     ...balance.value.subjects.map((subject: { name: string }, index: number) => ({
-      id: index,
+      id: String(index),
       label: subject.name,
       icon: '📚'
     }))
@@ -311,12 +312,13 @@ const subjectTabs = computed(() => {
 })
 
 // Mostrar todas las asignaturas o solo la seleccionada
-const showAllSubjects = computed(() => activeSubjectTab.value === -1)
+const showAllSubjects = computed(() => activeSubjectTab.value === 'all')
 
 // Asignatura activa
 const activeSubject = computed(() => {
-  if (!balance.value?.subjects) return null
-  return balance.value.subjects[activeSubjectTab.value] || null
+  if (!balance.value?.subjects || activeSubjectTab.value === 'all') return null
+  const index = parseInt(activeSubjectTab.value, 10)
+  return balance.value.subjects[index] || null
 })
 
 // Grupos de semanas (de 4 en 4)
@@ -367,7 +369,7 @@ async function loadBalanceDetail() {
   try {
     const response = await balancesService.get(selectedBalanceId.value)
     balance.value = response.data || null
-    activeSubjectTab.value = -1 // Mostrar "Todas" por defecto
+    activeSubjectTab.value = 'all' // Mostrar "Todas" por defecto
   } catch (err: unknown) {
     errorDetail.value = err instanceof Error ? err.message : 'Error al cargar el balance'
   } finally {
@@ -391,11 +393,70 @@ function goBackToList() {
 // Limpiar filtros
 function clearFilters() {
   filters.value = {
-    academicYear: '',
     academicYearText: '',
     period: '',
     weeks: ''
   }
+}
+
+// Confirmar eliminación de balance
+function confirmDeleteBalance(balanceItem: Balance, event: Event) {
+  event.stopPropagation() // Evitar que se abra el detalle
+  
+  uiStore.openConfirm({
+    title: 'Eliminar Balance',
+    message: `¿Estás seguro de que deseas eliminar "${balanceItem.name}"? Esta acción no se puede deshacer.`,
+    confirmText: 'Sí, eliminar',
+    cancelText: 'Cancelar',
+    onConfirm: async () => {
+      try {
+        await balancesService.delete(balanceItem.id)
+        await loadBalances()
+        uiStore.showSuccess('Balance eliminado correctamente')
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Error al eliminar el balance'
+        uiStore.showError(message)
+      }
+    }
+  })
+}
+
+// Exportar balance a CSV
+function exportBalance() {
+  if (!balance.value) return
+  
+  const subjects = showAllSubjects.value ? balance.value.subjects : [activeSubject.value!]
+  
+  // Crear cabeceras del CSV
+  const headers = ['Asignatura']
+  for (let w = 1; w <= balance.value.weeks; w++) {
+    headers.push(`S${w}-L`, `S${w}-M`, `S${w}-X`, `S${w}-J`)
+  }
+  headers.push('Consultas', 'EF')
+  
+  // Crear filas de datos
+  const rows: string[][] = subjects.map((subject: { name: string; values: string[] }) => {
+    const row: string[] = [subject.name]
+    // Añadir los valores de cada celda
+    subject.values.forEach((val: string) => {
+      row.push(val || '')
+    })
+    return row
+  })
+  
+  // Generar CSV
+  const csv = [
+    headers.join(','),
+    ...rows.map((row: string[]) => row.join(','))
+  ].join('\n')
+  
+  // Descargar archivo
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `${balance.value.name.replace(/\s+/g, '_')}.csv`
+  link.click()
+  URL.revokeObjectURL(link.href)
 }
 
 // Observar cambios en la query
