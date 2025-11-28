@@ -1,7 +1,7 @@
-/**
- * AppNotification - Componente global de notificaciones
- * Sistema de toast para mostrar mensajes temporales
- */
+<!--
+  AppNotification - Componente global de notificaciones
+  Sistema de toast para mostrar mensajes temporales
+-->
 <template>
   <Teleport to="body">
     <div class="fixed top-4 right-4 z-[100] space-y-3 max-w-sm w-full pointer-events-none">

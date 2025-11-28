@@ -1,8 +1,8 @@
-/**
- * Dashboard - Vista principal rediseñada
- * Usa el nuevo sistema de componentes y stores
- * Balances cargados desde la API (base de datos)
- */
+<!--
+  Dashboard - Vista principal rediseñada
+  Usa el nuevo sistema de componentes y stores
+  Balances cargados desde la API (base de datos)
+-->
 <template>
   <AppLayout>
     <!-- Welcome Section -->
@@ -61,7 +61,7 @@
     </div>
 
     <!-- Balances Recientes -->
-    <AppCard title="Mis Balances">
+    <AppCard title="Balances Recientes">
       <!-- Loading state -->
       <div v-if="balanceStore.isLoading" class="text-center py-12">
         <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -88,7 +88,6 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         <h3 class="mt-2 text-sm font-medium text-gray-900">No hay balances</h3>
-        <p class="mt-1 text-sm text-gray-500">Comienza creando tu primer balance de carga docente.</p>
         <div class="mt-6" v-if="authStore.isLeaderOrSubjectLeader">
           <AppButton variant="primary" @click="createNewBalance">
             <template #icon>
@@ -128,7 +127,7 @@
           </thead>
           <tbody class="bg-white divide-y divide-blue-50">
             <tr
-              v-for="balance in balanceStore.balances"
+              v-for="balance in recentBalances"
               :key="balance.id"
               class="hover:bg-blue-50 transition"
             >
@@ -152,6 +151,14 @@
               <td class="px-6 py-4 whitespace-nowrap text-center">
                 <div class="flex justify-center gap-2">
                   <AppButton
+                    variant="secondary"
+                    size="sm"
+                    @click="viewBalance(balance.id)"
+                  >
+                    Ver
+                  </AppButton>
+                  <AppButton
+                    v-if="authStore.isLeader"
                     variant="primary"
                     size="sm"
                     @click="editBalance(balance.id)"
@@ -159,6 +166,7 @@
                     Editar
                   </AppButton>
                   <AppButton
+                    v-if="authStore.isLeader"
                     variant="danger"
                     size="sm"
                     @click="confirmDeleteBalance(balance)"
@@ -170,13 +178,23 @@
             </tr>
           </tbody>
         </table>
+        
+        <!-- Link a ver todos -->
+        <div v-if="balanceStore.balances.length > 3" class="mt-4 text-center">
+          <router-link 
+            to="/balance/view" 
+            class="text-blue-600 hover:text-blue-800 text-sm font-medium"
+          >
+            Ver todos los balances ({{ balanceStore.balances.length }}) →
+          </router-link>
+        </div>
       </div>
     </AppCard>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useAsignaturasStore } from '../stores/asignaturas'
@@ -199,6 +217,17 @@ const stats = ref({
   weeks: 15,
 })
 
+// Últimos 3 balances (ordenados por fecha de actualización/creación)
+const recentBalances = computed(() => {
+  return [...balanceStore.balances]
+    .sort((a, b) => {
+      const dateA = new Date(a.updated_at || a.created_at || 0).getTime()
+      const dateB = new Date(b.updated_at || b.created_at || 0).getTime()
+      return dateB - dateA
+    })
+    .slice(0, 3)
+})
+
 onMounted(async () => {
   // Load balances and asignaturas in parallel for better performance
   await Promise.all([
@@ -214,6 +243,10 @@ async function loadBalances() {
 function createNewBalance() {
   balanceStore.resetBalance()
   router.push('/balance')
+}
+
+function viewBalance(id: number) {
+  router.push({ path: '/balance/view', query: { id: id.toString() } })
 }
 
 function editBalance(id: number) {

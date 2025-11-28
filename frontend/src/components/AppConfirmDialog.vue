@@ -1,7 +1,7 @@
-/**
- * AppConfirmDialog - Diálogo de confirmación global
- * Conectado con uiStore para manejo centralizado
- */
+<!--
+  AppConfirmDialog - Diálogo de confirmación global
+  Conectado con uiStore para manejo centralizado
+-->
 <template>
   <AppModal
     :model-value="confirmDialog.show"

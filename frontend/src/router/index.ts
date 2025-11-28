@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Login  from '../views/Login.vue'
 import BalanceForm from '../views/BalanceForm.vue'  
+import BalanceView from '../views/BalanceView.vue'
 import Dashboard from '../views/Dashboard.vue'
 import Configuracion from '../views/Configuracion.vue'
 import Asignaturas from '../views/Asignaturas.vue'
@@ -34,6 +35,12 @@ const router = createRouter({
         requiresAuth: true,
         requiresLeader: true 
       }
+    },
+    {
+      path: '/balance/view',
+      name: 'BalanceView',
+      component: BalanceView,
+      meta: { requiresAuth: true }
     },
     {
       path: '/asignaturas',

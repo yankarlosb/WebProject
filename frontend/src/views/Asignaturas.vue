@@ -1,7 +1,7 @@
-/**
- * Asignaturas - Vista refactorizada
- * Gestión de asignaturas con el nuevo sistema de componentes y stores
- */
+<!--
+  Asignaturas - Vista refactorizada
+  Gestión de asignaturas con el nuevo sistema de componentes y stores
+-->
 <template>
   <AppLayout>
     <!-- Header -->

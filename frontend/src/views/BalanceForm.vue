@@ -74,49 +74,22 @@
 
               <!-- Tablas de balance -->
               <div v-else class="space-y-6">
-                <!-- Semanas 1-4 -->
+                <!-- Semanas lectivas dinámicas (grupos de 4) -->
                 <BalanceWeekTable
+                  v-for="(group, idx) in weekGroups"
+                  :key="`weeks-${idx}`"
                   :subjects="balanceStore.currentBalance.subjects"
-                  title="Semanas 1 - 4"
-                  :weeks="[1, 2, 3, 4]"
-                  :start-cell-index="0"
-                  color-scheme="blue"
-                  @update-value="updateCellValue"
-                />
-
-                <!-- Semanas 5-8 -->
-                <BalanceWeekTable
-                  :subjects="balanceStore.currentBalance.subjects"
-                  title="Semanas 5 - 8"
-                  :weeks="[5, 6, 7, 8]"
-                  :start-cell-index="16"
-                  color-scheme="blue"
-                  @update-value="updateCellValue"
-                />
-
-                <!-- Semanas 9-12 -->
-                <BalanceWeekTable
-                  :subjects="balanceStore.currentBalance.subjects"
-                  title="Semanas 9 - 12"
-                  :weeks="[9, 10, 11, 12]"
-                  :start-cell-index="32"
-                  color-scheme="blue"
-                  @update-value="updateCellValue"
-                />
-
-                <!-- Semanas 13-15 -->
-                <BalanceWeekTable
-                  :subjects="balanceStore.currentBalance.subjects"
-                  title="Semanas 13 - 15"
-                  :weeks="[13, 14, 15]"
-                  :start-cell-index="48"
-                  color-scheme="purple"
+                  :title="`Semanas ${group.start} - ${group.end}`"
+                  :weeks="group.weeks"
+                  :start-cell-index="group.startIndex"
+                  :color-scheme="idx < weekGroups.length - 1 ? 'blue' : 'purple'"
                   @update-value="updateCellValue"
                 />
 
                 <!-- Consultas y Exámenes Finales -->
                 <BalanceFinalTable
                   :subjects="balanceStore.currentBalance.subjects"
+                  :weeks-count="balanceStore.currentBalance.weeks"
                   @update-value="updateCellValue"
                   @delete-subject="confirmDeleteSubject"
                 />
@@ -226,6 +199,30 @@ const balanceConfig = computed(() => {
     startDate: balanceStore.currentBalance.start_date,
     weeks: balanceStore.currentBalance.weeks,
   }
+})
+
+// Computed para agrupar semanas dinámicamente (grupos de 4)
+const weekGroups = computed(() => {
+  const totalWeeks = balanceStore.currentBalance?.weeks || 15
+  const groups = []
+  const groupSize = 4
+  
+  for (let i = 0; i < totalWeeks; i += groupSize) {
+    const start = i + 1
+    const end = Math.min(i + groupSize, totalWeeks)
+    const weeks = []
+    for (let w = start; w <= end; w++) {
+      weeks.push(w)
+    }
+    groups.push({
+      start,
+      end,
+      weeks,
+      startIndex: i * 4, // 4 celdas por semana
+    })
+  }
+  
+  return groups
 })
 
 // Manejador de actualización de configuración

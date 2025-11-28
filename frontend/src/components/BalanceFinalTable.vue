@@ -33,7 +33,7 @@
               {{ subject.name }}
             </td>
             
-            <!-- Consultas: 4 celdas (índices 60-63) -->
+            <!-- Consultas: 4 celdas -->
             <td
               v-for="cellIndex in 4"
               :key="`cons-${cellIndex}`"
@@ -41,10 +41,10 @@
               :class="cellIndex === 1 ? 'border-l border-gray-300' : ''"
             >
               <select
-                :value="getCellValue(subject.values[59 + cellIndex])"
-                @change="(e) => $emit('update-value', subject.id, 59 + cellIndex, e)"
+                :value="getCellValue(subject.values[consultasStartIndex + cellIndex - 1])"
+                @change="(e) => $emit('update-value', subject.id, consultasStartIndex + cellIndex - 1, e)"
                 class="w-11 h-7 text-center border border-gray-200 rounded text-xs focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none cursor-pointer appearance-none px-1"
-                :class="getCellValue(subject.values[59 + cellIndex]) ? 'bg-green-50 font-semibold' : 'bg-white'"
+                :class="getCellValue(subject.values[consultasStartIndex + cellIndex - 1]) ? 'bg-green-50 font-semibold' : 'bg-white'"
               >
                 <option v-for="tipo in tiposActividadBalance" :key="tipo.value" :value="tipo.value">
                   {{ tipo.label }}
@@ -52,7 +52,7 @@
               </select>
             </td>
             
-            <!-- Exámenes Finales: 5 celdas (índices 64-68) -->
+            <!-- Exámenes Finales: 5 celdas -->
             <td
               v-for="cellIndex in 5"
               :key="`exam-${cellIndex}`"
@@ -60,10 +60,10 @@
               :class="cellIndex === 1 ? 'border-l border-gray-300' : ''"
             >
               <select
-                :value="getCellValue(subject.values[63 + cellIndex])"
-                @change="(e) => $emit('update-value', subject.id, 63 + cellIndex, e)"
+                :value="getCellValue(subject.values[examenesStartIndex + cellIndex - 1])"
+                @change="(e) => $emit('update-value', subject.id, examenesStartIndex + cellIndex - 1, e)"
                 class="w-11 h-7 text-center border border-gray-200 rounded text-xs focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none cursor-pointer appearance-none px-1"
-                :class="getCellValue(subject.values[63 + cellIndex]) ? 'bg-green-50 font-semibold' : 'bg-white'"
+                :class="getCellValue(subject.values[examenesStartIndex + cellIndex - 1]) ? 'bg-green-50 font-semibold' : 'bg-white'"
               >
                 <option v-for="tipo in tiposActividadBalance" :key="tipo.value" :value="tipo.value">
                   {{ tipo.label }}
@@ -91,6 +91,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { tiposActividadBalance } from '../utils/constants'
 
 interface Subject {
@@ -101,14 +102,23 @@ interface Subject {
 
 interface Props {
   subjects: Subject[]
+  weeksCount?: number  // Número de semanas lectivas (15 o 16)
 }
 
-defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  weeksCount: 15
+})
 
 defineEmits<{
   'update-value': [subjectId: string, cellIndex: number, event: Event]
   'delete-subject': [subjectId: string]
 }>()
+
+// Índice de inicio para consultas = semanas * 4 celdas por semana
+const consultasStartIndex = computed(() => props.weeksCount * 4)
+
+// Índice de inicio para exámenes = consultas + 4 celdas
+const examenesStartIndex = computed(() => consultasStartIndex.value + 4)
 
 // Convierte valores numéricos legacy a string o devuelve el string
 function getCellValue(value: number | string | undefined): string {

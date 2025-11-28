@@ -1,7 +1,7 @@
-/**
- * StatsCard - Tarjeta de estadística
- * Muestra un valor con icono y color personalizado
- */
+<!--
+  StatsCard - Tarjeta de estadística
+  Muestra un valor con icono y color personalizado
+-->
 <template>
   <div
     class="bg-gradient-to-br p-6 rounded-xl shadow-lg border hover:shadow-xl transition-shadow duration-200"

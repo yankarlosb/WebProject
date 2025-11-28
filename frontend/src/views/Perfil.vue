@@ -1,7 +1,7 @@
-/**
- * Perfil - Vista de perfil personal del usuario
- * Todos los usuarios pueden acceder y editar su información personal
- */
+<!--
+  Perfil - Vista de perfil personal del usuario
+  Todos los usuarios pueden acceder y editar su información personal
+-->
 <template>
   <AppLayout>
     <div class="max-w-4xl mx-auto">

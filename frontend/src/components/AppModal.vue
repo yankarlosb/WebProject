@@ -1,7 +1,7 @@
-/**
- * AppModal - Componente de modal reutilizable
- * Modal centrado con overlay y animaciones
- */
+<!--
+  AppModal - Componente de modal reutilizable
+  Modal centrado con overlay y animaciones
+-->
 <template>
   <Teleport to="body">
     <Transition

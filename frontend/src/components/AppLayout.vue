@@ -1,7 +1,7 @@
-/**
- * AppLayout - Layout principal de la aplicación
- * Incluye sidebar, header y área de contenido
- */
+<!--
+  AppLayout - Layout principal de la aplicación
+  Incluye sidebar, header y área de contenido
+-->
 <template>
   <div class="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
     <!-- Header -->

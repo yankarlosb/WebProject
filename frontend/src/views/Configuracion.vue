@@ -1,7 +1,7 @@
-/**
- * Configuración - Vista de administración (Solo Administradores)
- * Gestión de usuarios del sistema
- */
+<!--
+  Configuración - Vista de administración (Solo Administradores)
+  Gestión de usuarios del sistema
+-->
 <template>
   <AppLayout>
     <!-- Header con advertencia de admin -->

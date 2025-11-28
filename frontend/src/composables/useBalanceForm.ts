@@ -87,6 +87,12 @@ export function useBalanceForm() {
    * Guarda el balance actual en la base de datos
    */
   async function saveBalance() {
+    // Validar que haya al menos una asignatura
+    if (!balanceStore.currentBalance?.subjects || balanceStore.currentBalance.subjects.length === 0) {
+      uiStore.showError('Debes agregar al menos una asignatura antes de guardar')
+      return
+    }
+    
     isSaving.value = true
     
     try {

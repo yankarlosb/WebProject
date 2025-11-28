@@ -1,7 +1,7 @@
-/**
- * AppInput - Componente de input reutilizable
- * Inputs con validación y estilos consistentes
- */
+<!--
+  AppInput - Componente de input reutilizable
+  Inputs con validación y estilos consistentes
+-->
 <template>
   <div class="w-full">
     <!-- Label -->

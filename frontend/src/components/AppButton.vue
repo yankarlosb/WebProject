@@ -1,7 +1,7 @@
-/**
- * AppButton - Componente de botón reutilizable
- * Botones con variantes y estados consistentes
- */
+<!--
+  AppButton - Componente de botón reutilizable
+  Botones con variantes y estados consistentes
+-->
 <template>
   <button
     :type="type"

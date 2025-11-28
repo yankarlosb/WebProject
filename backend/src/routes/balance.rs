@@ -61,16 +61,13 @@ impl From<balance::Model> for BalanceResponse {
     }
 }
 
-/// Listar balances del usuario autenticado
+/// Listar todos los balances (visibles para todos los usuarios autenticados)
 #[get("/balances")]
 pub async fn list_balances(
     db: &State<AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
 ) -> Json<ApiResponseWithData<Vec<BalanceResponse>>> {
-    let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
-
     let result = balance::Entity::find()
-        .filter(balance::Column::UserId.eq(user_id))
         .order_by_desc(balance::Column::CreatedAt)
         .all(&db.db)
         .await;
@@ -90,17 +87,14 @@ pub async fn list_balances(
     }
 }
 
-/// Obtener un balance específico por ID
+/// Obtener un balance específico por ID (visible para todos los usuarios autenticados)
 #[get("/balances/<balance_id>")]
 pub async fn get_balance(
     balance_id: i32,
     db: &State<AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
 ) -> Json<ApiResponseWithData<BalanceResponse>> {
-    let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
-
     let result = balance::Entity::find_by_id(balance_id)
-        .filter(balance::Column::UserId.eq(user_id))
         .one(&db.db)
         .await;
 

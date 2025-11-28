@@ -1,7 +1,7 @@
-/**
- * AppTabs - Componente de tabs reutilizable
- * Sistema de pestañas para organizar contenido
- */
+<!--
+  AppTabs - Componente de tabs reutilizable
+  Sistema de pestañas para organizar contenido
+-->
 <template>
   <div>
     <!-- Tab Headers -->
@@ -18,7 +18,7 @@
           "
         >
           <span class="flex items-center gap-2">
-            <component v-if="tab.icon" :is="tab.icon" class="w-4 h-4" />
+            <span v-if="tab.icon">{{ tab.icon }}</span>
             {{ tab.label }}
           </span>
         </button>

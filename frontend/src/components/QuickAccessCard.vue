@@ -1,7 +1,7 @@
-/**
- * QuickAccessCard - Tarjeta de acceso rápido
- * Botones grandes para navegación principal
- */
+<!--
+  QuickAccessCard - Tarjeta de acceso rápido
+  Botones grandes para navegación principal
+-->
 <template>
   <button
     class="bg-white rounded-xl shadow-lg border border-blue-100 p-6 text-left transition-all duration-200 hover:shadow-xl hover:-translate-y-1 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"

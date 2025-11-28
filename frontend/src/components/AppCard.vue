@@ -1,7 +1,7 @@
-/**
- * AppCard - Componente de tarjeta reutilizable
- * Wrapper para contenido con estilos consistentes
- */
+<!--
+  AppCard - Componente de tarjeta reutilizable
+  Wrapper para contenido con estilos consistentes
+-->
 <template>
   <div 
     class="bg-white rounded-xl shadow-lg border border-blue-100 overflow-hidden"
