@@ -148,6 +148,26 @@ impl RateLimiter {
         
         MAX_ATTEMPTS
     }
+
+    /// Checks if cleanup is needed and performs it if the map has grown too large.
+    /// Returns true if cleanup was performed.
+    /// This is more efficient than calling cleanup_old_entries() on every request.
+    pub fn maybe_cleanup(&self) -> bool {
+        // Only cleanup if the map has grown beyond a threshold
+        const CLEANUP_THRESHOLD: usize = 1000;
+        
+        let should_cleanup = {
+            let attempts = self.attempts.lock().unwrap();
+            attempts.len() > CLEANUP_THRESHOLD
+        };
+        
+        if should_cleanup {
+            self.cleanup_old_entries();
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[cfg(test)]

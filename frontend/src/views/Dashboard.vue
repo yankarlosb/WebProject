@@ -228,6 +228,7 @@ const stats = ref({
 
 // Últimos 3 balances (ordenados por fecha de actualización/creación)
 const recentBalances = computed(() => {
+  // Sort by date descending and take first 3
   return [...balanceStore.balances]
     .sort((a, b) => {
       const dateA = new Date(a.updated_at || a.created_at || 0).getTime()

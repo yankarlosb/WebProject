@@ -105,6 +105,7 @@ export const useUsersStore = defineStore('users', () => {
 
   /**
    * Eliminar un usuario
+   * Optimized: uses filter for cleaner immutable update instead of findIndex + splice
    */
   async function deleteUser(id: number) {
     isLoading.value = true
@@ -114,11 +115,8 @@ export const useUsersStore = defineStore('users', () => {
       const response = await UsersService.delete(id)
       
       if (response.success) {
-        // Remover del estado local
-        const index = users.value.findIndex(u => u.id === id)
-        if (index !== -1) {
-          users.value.splice(index, 1)
-        }
+        // Optimized: use filter for immutable update
+        users.value = users.value.filter(u => u.id !== id)
         return { success: true }
       }
       

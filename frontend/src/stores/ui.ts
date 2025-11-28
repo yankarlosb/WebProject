@@ -62,10 +62,8 @@ export const useUIStore = defineStore('ui', () => {
   }
 
   function removeNotification(id: string) {
-    const index = notifications.value.findIndex(n => n.id === id)
-    if (index > -1) {
-      notifications.value.splice(index, 1)
-    }
+    // Optimized: use filter for cleaner immutable update instead of findIndex + splice
+    notifications.value = notifications.value.filter(n => n.id !== id)
   }
 
   function clearNotifications() {

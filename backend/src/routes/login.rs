@@ -93,6 +93,8 @@ pub async fn login_json(
     // Login exitoso - limpiar intentos fallidos
     if let Some(ip) = client_ip {
         db.rate_limiter.record_success(ip);
+        // Periodically cleanup old entries to prevent memory growth
+        db.rate_limiter.maybe_cleanup();
     }
 
     // Crear los claims del JWT con toda la información del usuario
