@@ -256,6 +256,7 @@ import BalanceViewFinalTable from '@/components/BalanceViewFinalTable.vue'
 import { balancesService, type Balance } from '@/services/balances'
 import { useAuthStore } from '@/stores/auth'
 import { useUIStore } from '@/stores/ui'
+import { useWeekGroups } from '@/composables/useWeekGroups'
 
 const route = useRoute()
 const router = useRouter()
@@ -321,30 +322,8 @@ const activeSubject = computed(() => {
   return balance.value.subjects[index] || null
 })
 
-// Grupos de semanas (de 4 en 4)
-const weekGroups = computed(() => {
-  if (!balance.value) return []
-  const totalWeeks = balance.value.weeks
-  const groups = []
-  const groupSize = 4
-  
-  for (let i = 0; i < totalWeeks; i += groupSize) {
-    const start = i + 1
-    const end = Math.min(i + groupSize, totalWeeks)
-    const weeks = []
-    for (let w = start; w <= end; w++) {
-      weeks.push(w)
-    }
-    groups.push({
-      start,
-      end,
-      weeks,
-      startIndex: i * 4, // 4 celdas por semana
-    })
-  }
-  
-  return groups
-})
+// Grupos de semanas (de 4 en 4) - using shared composable
+const weekGroups = useWeekGroups(() => balance.value?.weeks)
 
 // Cargar lista de balances
 async function loadBalances() {

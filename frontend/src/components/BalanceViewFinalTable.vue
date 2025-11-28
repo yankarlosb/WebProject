@@ -73,6 +73,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { getCellValue } from '../utils/balance-table'
 
 interface Subject {
   id: string
@@ -94,14 +95,4 @@ const consultasStartIndex = computed(() => props.weeksCount * 4)
 
 // Índice de inicio para exámenes = consultas + 4 celdas
 const examenesStartIndex = computed(() => consultasStartIndex.value + 4)
-
-function getCellValue(value: number | string | undefined): string {
-  if (value === undefined || value === null || value === 0 || value === '') {
-    return ''
-  }
-  if (typeof value === 'number') {
-    return ''
-  }
-  return value
-}
 </script>
