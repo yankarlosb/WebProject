@@ -64,6 +64,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useUIStore } from '../stores/ui'
+import { isValidUsername } from '../utils/validation'
 
 const username = ref<string>('')
 const password = ref<string>('')
@@ -72,13 +73,22 @@ const authStore = useAuthStore()
 const uiStore = useUIStore()
 
 const handleSubmit = async () => {
-  if (!username.value.trim() || !password.value.trim()) {
+  const trimmedUsername = username.value.trim()
+  const trimmedPassword = password.value.trim()
+  
+  if (!trimmedUsername || !trimmedPassword) {
     uiStore.showWarning('Por favor ingrese usuario y contraseña')
     return
   }
 
+  // Validar formato de username (solo alfanumérico y _)
+  if (!isValidUsername(trimmedUsername)) {
+    uiStore.showError('Usuario inválido')
+    return
+  }
+
   // Usar el authStore para login
-  const result = await authStore.login(username.value.trim(), password.value.trim())
+  const result = await authStore.login(trimmedUsername, trimmedPassword)
   
   if (result.success) {
     // Login exitoso, mostrar notificación y redirigir

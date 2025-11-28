@@ -26,6 +26,7 @@ pub mod types;
 // Re-exportar los módulos específicos de entidades para facilitar el acceso
 pub use database::{asignaturas, usuarios};
 pub use utils::cors::CORS;
+pub use utils::rate_limiter::RateLimiter;
 
 
 // Importar las rutas para usar en el macro routes!
@@ -60,10 +61,12 @@ use routes::balance::{
 
 pub struct AppState {
     pub db: DatabaseConnection,
+    pub rate_limiter: RateLimiter,
 }
 
 pub async fn run() -> Rocket<Build> {
     let db = utils::db::establish_connection().await;
+    let rate_limiter = RateLimiter::new();
     
     let frontend_path = if cfg!(debug_assertions) {
         "../frontend/src"
@@ -72,7 +75,7 @@ pub async fn run() -> Rocket<Build> {
     };
 
     rocket::build()
-        .manage(AppState { db })
+        .manage(AppState { db, rate_limiter })
         .attach(CORS)
         .mount("/api", routes![
             login_json,

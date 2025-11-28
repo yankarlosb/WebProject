@@ -1,4 +1,5 @@
 use crate::utils::jwt::{AdminUser, AuthenticatedUser, LeaderUser, SubjectLeaderUser, LeaderOrSubjectLeaderUser};
+use crate::utils::validation::{validate_new_user, validate_profile, validate_subject, is_valid_password};
 use crate::*;
 use crate::types::{ApiResponse, ApiResponseWithData};
 use crate::{usuarios, asignaturas};
@@ -20,11 +21,17 @@ pub async fn create_user(
     db: &State<AppState>,
     _admin: AdminUser,
 ) -> Json<ApiResponse> {
-    let user_name = &new_user.user_name;
-    let name = &new_user.name;
-    let email = &new_user.email;
+    let user_name = new_user.user_name.trim();
+    let name = new_user.name.trim();
+    let email = new_user.email.trim();
     let password = &new_user.password;
     let role = &new_user.role;
+
+    // Validar datos de entrada
+    let validation = validate_new_user(user_name, name, email, password);
+    if !validation.valid {
+        return Json(ApiResponse::error(validation.error.unwrap_or_else(|| "Datos inválidos".to_string())));
+    }
 
     match utils::db::create_user(&db.db, user_name, name, email, password, role).await {
         Ok(_) => Json(ApiResponse::success("Usuario creado exitosamente".to_string())),
@@ -82,8 +89,16 @@ pub async fn update_profile(
     user: AuthenticatedUser,
 ) -> Json<ApiResponse> {
     let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
+    let name = profile_data.name.trim();
+    let email = profile_data.email.trim();
     
-    match utils::db::update_profile(&db.db, user_id, &profile_data.name, &profile_data.email).await {
+    // Validar datos
+    let validation = validate_profile(name, email);
+    if !validation.valid {
+        return Json(ApiResponse::error(validation.error.unwrap_or_else(|| "Datos inválidos".to_string())));
+    }
+    
+    match utils::db::update_profile(&db.db, user_id, name, email).await {
         Ok(_) => Json(ApiResponse::success("Perfil actualizado exitosamente".to_string())),
         Err(e) => Json(ApiResponse::error(format!("Error al actualizar el perfil: {}", e))),
     }
@@ -101,6 +116,11 @@ pub async fn change_password(
     user: AuthenticatedUser,
 ) -> Json<ApiResponse> {
     let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
+    
+    // Validar contraseña
+    if !is_valid_password(&password_data.new_password) {
+        return Json(ApiResponse::error("Contraseña inválida (mínimo 8 caracteres)".to_string()));
+    }
     
     match utils::db::change_user_password(&db.db, user_id, &password_data.new_password).await {
         Ok(_) => Json(ApiResponse::success("Contraseña cambiada exitosamente".to_string())),
@@ -128,6 +148,12 @@ pub async fn create_asignatura(
     db: &State<AppState>,
     _leader: LeaderUser,
 ) -> Json<ApiResponse> {
+    // Validar nombre de asignatura
+    let validation = validate_subject(&asignatura_data.name);
+    if !validation.valid {
+        return Json(ApiResponse::error(validation.error.unwrap_or_else(|| "Nombre de asignatura inválido".to_string())));
+    }
+    
     match utils::db::create_asignatura(&db.db, &asignatura_data.into_inner()).await {
         Ok(_) => Json(ApiResponse::success("Asignatura creada exitosamente".to_string())),
         Err(e) => Json(ApiResponse::error(format!("Error al crear la asignatura: {}", e))),

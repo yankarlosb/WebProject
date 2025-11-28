@@ -373,6 +373,7 @@ import AppInput from '../components/AppInput.vue'
 import AppModal from '../components/AppModal.vue'
 import StatsCard from '../components/StatsCard.vue'
 import { tiposActividad } from '../utils/constants'
+import { isValidSubjectName, isPositiveNumber } from '../utils/validation'
 
 const asignaturasStore = useAsignaturasStore()
 const authStore = useAuthStore()
@@ -524,16 +525,33 @@ async function handleSave() {
   
   if (isEditing.value) {
     // Validar formulario de edición
-    if (!editForm.value.name.trim()) {
+    const trimmedName = editForm.value.name.trim()
+    if (!trimmedName) {
       errors.value.name = 'El nombre es requerido'
       uiStore.showWarning('Por favor completa todos los campos requeridos')
       return
     }
+    if (!isValidSubjectName(trimmedName)) {
+      errors.value.name = 'Nombre de asignatura inválido'
+      uiStore.showError('Nombre de asignatura inválido')
+      return
+    }
+    // Validar números positivos en horas
+    if (!isPositiveNumber(editForm.value.hours)) {
+      uiStore.showError('Horas inválidas')
+      return
+    }
   } else {
     // Validar formulario de creación
-    if (!createForm.value.name.trim()) {
+    const trimmedName = createForm.value.name.trim()
+    if (!trimmedName) {
       errors.value.name = 'El nombre es requerido'
       uiStore.showWarning('Por favor completa todos los campos requeridos')
+      return
+    }
+    if (!isValidSubjectName(trimmedName)) {
+      errors.value.name = 'Nombre de asignatura inválido'
+      uiStore.showError('Nombre de asignatura inválido')
       return
     }
     if (!createForm.value.leader_user_name) {

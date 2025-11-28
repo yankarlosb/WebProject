@@ -255,6 +255,7 @@ import AppInput from '../components/AppInput.vue'
 import AppModal from '../components/AppModal.vue'
 import AppTabs from '../components/AppTabs.vue'
 import { USER_ROLES, USER_ROLE_OPTIONS } from '../utils/constants'
+import { isValidUsername, isValidName, isValidEmail, isValidPassword } from '../utils/validation'
 
 const authStore = useAuthStore()
 const uiStore = useUIStore()
@@ -343,15 +344,45 @@ function closeUserModal() {
 }
 
 async function saveUser() {
-  // Validación básica
-  if (!userForm.value.user_name || !userForm.value.name || !userForm.value.email) {
+  const trimmedUserName = userForm.value.user_name.trim()
+  const trimmedName = userForm.value.name.trim()
+  const trimmedEmail = userForm.value.email.trim()
+  const trimmedPassword = userForm.value.password.trim()
+
+  // Validación básica de campos requeridos
+  if (!trimmedUserName || !trimmedName || !trimmedEmail) {
     uiStore.showWarning('Por favor completa todos los campos requeridos')
     return
   }
 
-  if (!isEditingUser.value && !userForm.value.password) {
-    uiStore.showWarning('La contraseña es requerida para nuevos usuarios')
+  // Validar formato de username
+  if (!isValidUsername(trimmedUserName)) {
+    uiStore.showError('Nombre de usuario inválido (solo letras, números y guión bajo)')
     return
+  }
+
+  // Validar formato de nombre
+  if (!isValidName(trimmedName)) {
+    uiStore.showError('Nombre inválido (solo letras y espacios)')
+    return
+  }
+
+  // Validar formato de email
+  if (!isValidEmail(trimmedEmail)) {
+    uiStore.showError('Email inválido')
+    return
+  }
+
+  // Validar contraseña para nuevos usuarios
+  if (!isEditingUser.value) {
+    if (!trimmedPassword) {
+      uiStore.showWarning('La contraseña es requerida para nuevos usuarios')
+      return
+    }
+    if (!isValidPassword(trimmedPassword)) {
+      uiStore.showError('Contraseña inválida (mínimo 8 caracteres)')
+      return
+    }
   }
 
   // Guardar en backend

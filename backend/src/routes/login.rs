@@ -6,6 +6,14 @@ use rocket::{catch, get, post};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
+/// Regex para validar username (solo alfanumérico y guión bajo)
+fn is_valid_username(username: &str) -> bool {
+    if username.len() < 3 || username.len() > 50 {
+        return false;
+    }
+    username.chars().all(|c| c.is_alphanumeric() || c == '_')
+}
+
 #[derive(Deserialize)]
 pub struct LoginJson {
     username: String,
@@ -20,8 +28,34 @@ pub async fn login_json(
     cookies: &CookieJar<'_>,
     remote_addr: Option<SocketAddr>,
 ) -> Json<LoginResponse> {
-    let username = &credentials.username;
+    let username = credentials.username.trim();
     let password = &credentials.password;
+
+    // Obtener IP del cliente
+    let client_ip = remote_addr.map(|addr| addr.ip());
+    
+    // Verificar si la IP está bloqueada por rate limiting
+    if let Some(ip) = client_ip {
+        if db.rate_limiter.is_blocked(ip) {
+            if let Some(remaining) = db.rate_limiter.get_block_remaining(ip) {
+                return Json(LoginResponse::error(
+                    format!("Demasiados intentos fallidos. Intente de nuevo en {} segundos.", remaining)
+                ));
+            }
+            return Json(LoginResponse::error(
+                "Demasiados intentos fallidos. Intente más tarde.".to_string()
+            ));
+        }
+    }
+
+    // Validar formato de username (prevenir inyecciones)
+    if !is_valid_username(username) {
+        // Registrar intento fallido
+        if let Some(ip) = client_ip {
+            db.rate_limiter.record_failed_attempt(ip);
+        }
+        return Json(LoginResponse::error("Usuario inválido".to_string()));
+    }
 
     // Buscar el usuario en la base de datos
     let entity = match usuarios::Entity::find()
@@ -31,7 +65,11 @@ pub async fn login_json(
     {
         Ok(Some(user)) => user,
         Ok(None) => {
-            return Json(LoginResponse::error("Usuario no encontrado".to_string()));
+            // Registrar intento fallido
+            if let Some(ip) = client_ip {
+                db.rate_limiter.record_failed_attempt(ip);
+            }
+            return Json(LoginResponse::error("Credenciales inválidas".to_string()));
         }
         Err(_) => {
             return Json(LoginResponse::error("Error del servidor".to_string()));
@@ -41,7 +79,27 @@ pub async fn login_json(
     // Verificar la contraseña
     let verify = bcrypt::verify(password, &entity.token).unwrap_or(false);
     if !verify {
-        return Json(LoginResponse::error("Contraseña incorrecta".to_string()));
+        // Registrar intento fallido
+        if let Some(ip) = client_ip {
+            let blocked = db.rate_limiter.record_failed_attempt(ip);
+            if blocked {
+                return Json(LoginResponse::error(
+                    "Demasiados intentos fallidos. Cuenta bloqueada temporalmente.".to_string()
+                ));
+            }
+            let remaining = db.rate_limiter.get_remaining_attempts(ip);
+            if remaining <= 2 {
+                return Json(LoginResponse::error(
+                    format!("Credenciales inválidas. {} intentos restantes.", remaining)
+                ));
+            }
+        }
+        return Json(LoginResponse::error("Credenciales inválidas".to_string()));
+    }
+
+    // Login exitoso - limpiar intentos fallidos
+    if let Some(ip) = client_ip {
+        db.rate_limiter.record_success(ip);
     }
 
     // Crear los claims del JWT con toda la información del usuario

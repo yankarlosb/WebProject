@@ -160,6 +160,7 @@ import AppLayout from '../components/AppLayout.vue'
 import AppCard from '../components/AppCard.vue'
 import AppInput from '../components/AppInput.vue'
 import AppButton from '../components/AppButton.vue'
+import { isValidName, isValidEmail, isValidPassword } from '../utils/validation'
 
 const authStore = useAuthStore()
 const uiStore = useUIStore()
@@ -220,13 +221,26 @@ async function handleSaveProfile() {
   // Validación básica
   errors.value = { name: '', email: '' }
   
-  if (!form.value.name.trim()) {
+  const trimmedName = form.value.name.trim()
+  const trimmedEmail = form.value.email.trim()
+  
+  if (!trimmedName) {
     errors.value.name = 'El nombre es requerido'
     return
   }
   
-  if (!form.value.email.trim()) {
+  if (!isValidName(trimmedName)) {
+    errors.value.name = 'Nombre inválido'
+    return
+  }
+  
+  if (!trimmedEmail) {
     errors.value.email = 'El correo es requerido'
+    return
+  }
+  
+  if (!isValidEmail(trimmedEmail)) {
+    errors.value.email = 'Email inválido'
     return
   }
 
@@ -235,8 +249,8 @@ async function handleSaveProfile() {
   try {
     // Actualizar perfil en el backend
     const result = await ProfileService.updateProfile({
-      name: form.value.name,
-      email: form.value.email,
+      name: trimmedName,
+      email: trimmedEmail,
     })
 
     if (result.success) {
@@ -265,17 +279,19 @@ async function handleChangePassword() {
     confirmPassword: '',
   }
 
-  if (!passwordForm.value.newPassword) {
+  const trimmedPassword = passwordForm.value.newPassword.trim()
+
+  if (!trimmedPassword) {
     passwordErrors.value.newPassword = 'La nueva contraseña es requerida'
     return
   }
 
-  if (passwordForm.value.newPassword.length < 8) {
-    passwordErrors.value.newPassword = 'La contraseña debe tener al menos 8 caracteres'
+  if (!isValidPassword(trimmedPassword)) {
+    passwordErrors.value.newPassword = 'Contraseña inválida (mínimo 8 caracteres)'
     return
   }
 
-  if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+  if (trimmedPassword !== passwordForm.value.confirmPassword.trim()) {
     passwordErrors.value.confirmPassword = 'Las contraseñas no coinciden'
     return
   }
@@ -284,7 +300,7 @@ async function handleChangePassword() {
 
   try {
     // Cambiar contraseña en el backend
-    const result = await ProfileService.changePassword(passwordForm.value.newPassword)
+    const result = await ProfileService.changePassword(trimmedPassword)
     
     if (result.success) {
       uiStore.showSuccess('Contraseña cambiada correctamente')
