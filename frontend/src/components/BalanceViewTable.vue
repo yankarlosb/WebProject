@@ -69,6 +69,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { getCellValue, viewColorClasses, type ColorScheme } from '../utils/balance-table'
 
 interface Subject {
   id: string
@@ -83,7 +84,7 @@ interface Props {
   startCellIndex: number
   columnsPerWeek?: number
   headerIcon?: string
-  colorScheme?: 'blue' | 'purple' | 'green'
+  colorScheme?: ColorScheme
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -92,50 +93,13 @@ const props = withDefaults(defineProps<Props>(), {
   colorScheme: 'blue',
 })
 
-function getCellValue(value: number | string | undefined): string {
-  if (value === undefined || value === null || value === 0 || value === '') {
-    return ''
-  }
-  if (typeof value === 'number') {
-    return ''
-  }
-  return value
-}
-
 const totalCells = computed(() => props.weeks.length * props.columnsPerWeek)
 const cellsPerSubject = computed(() => totalCells.value)
 
-const colorClasses = {
-  blue: {
-    border: 'border-blue-200',
-    header: 'bg-gradient-to-r from-blue-600 to-blue-500',
-    headerBadge: 'text-blue-100',
-    tableHeader: 'bg-blue-50',
-    headerText: 'text-blue-700',
-    cellFilled: 'bg-blue-50 text-blue-800'
-  },
-  purple: {
-    border: 'border-purple-200',
-    header: 'bg-gradient-to-r from-purple-600 to-purple-500',
-    headerBadge: 'text-purple-100',
-    tableHeader: 'bg-purple-50',
-    headerText: 'text-purple-700',
-    cellFilled: 'bg-purple-50 text-purple-800'
-  },
-  green: {
-    border: 'border-green-200',
-    header: 'bg-gradient-to-r from-green-600 to-green-500',
-    headerBadge: 'text-green-100',
-    tableHeader: 'bg-green-50',
-    headerText: 'text-green-700',
-    cellFilled: 'bg-green-50 text-green-800'
-  }
-} as const
-
-const borderColorClass = computed(() => colorClasses[props.colorScheme].border)
-const headerColorClass = computed(() => colorClasses[props.colorScheme].header)
-const headerBadgeColorClass = computed(() => colorClasses[props.colorScheme].headerBadge)
-const tableHeaderColorClass = computed(() => colorClasses[props.colorScheme].tableHeader)
-const headerTextColorClass = computed(() => colorClasses[props.colorScheme].headerText)
-const cellFilledClass = computed(() => colorClasses[props.colorScheme].cellFilled)
+const borderColorClass = computed(() => viewColorClasses[props.colorScheme].border)
+const headerColorClass = computed(() => viewColorClasses[props.colorScheme].header)
+const headerBadgeColorClass = computed(() => viewColorClasses[props.colorScheme].headerBadge)
+const tableHeaderColorClass = computed(() => viewColorClasses[props.colorScheme].tableHeader)
+const headerTextColorClass = computed(() => viewColorClasses[props.colorScheme].headerText)
+const cellFilledClass = computed(() => viewColorClasses[props.colorScheme].cellFilled)
 </script>

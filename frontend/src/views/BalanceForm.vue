@@ -152,6 +152,7 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, computed } from 'vue'
 import { useBalanceForm } from '../composables/useBalanceForm'
+import { useWeekGroups } from '../composables/useWeekGroups'
 import AppLayout from '../components/AppLayout.vue'
 import AppCard from '../components/AppCard.vue'
 import AppButton from '../components/AppButton.vue'
@@ -201,29 +202,8 @@ const balanceConfig = computed(() => {
   }
 })
 
-// Computed para agrupar semanas dinámicamente (grupos de 4)
-const weekGroups = computed(() => {
-  const totalWeeks = balanceStore.currentBalance?.weeks || 15
-  const groups = []
-  const groupSize = 4
-  
-  for (let i = 0; i < totalWeeks; i += groupSize) {
-    const start = i + 1
-    const end = Math.min(i + groupSize, totalWeeks)
-    const weeks = []
-    for (let w = start; w <= end; w++) {
-      weeks.push(w)
-    }
-    groups.push({
-      start,
-      end,
-      weeks,
-      startIndex: i * 4, // 4 celdas por semana
-    })
-  }
-  
-  return groups
-})
+// Computed para agrupar semanas dinámicamente usando shared composable
+const weekGroups = useWeekGroups(() => balanceStore.currentBalance?.weeks)
 
 // Manejador de actualización de configuración
 function handleConfigUpdate(field: string, value: string | number) {

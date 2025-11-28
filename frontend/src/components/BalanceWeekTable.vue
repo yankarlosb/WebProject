@@ -91,6 +91,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { tiposActividadBalance } from '../utils/constants'
+import { getCellValue, editableColorClasses, type ColorScheme } from '../utils/balance-table'
 
 interface Subject {
   id: string
@@ -105,7 +106,7 @@ interface Props {
   startCellIndex: number
   columnsPerWeek?: number
   headerIcon?: string
-  colorScheme?: 'blue' | 'purple' | 'green'
+  colorScheme?: ColorScheme
   showActions?: boolean
 }
 
@@ -121,18 +122,6 @@ const emit = defineEmits<{
   'delete-subject': [subjectId: string]
 }>()
 
-// Convierte valores numéricos legacy a string o devuelve el string
-function getCellValue(value: number | string | undefined): string {
-  if (value === undefined || value === null || value === 0 || value === '') {
-    return ''
-  }
-  // Si es un número mayor a 0, lo tratamos como valor legacy (se podría mapear o ignorar)
-  if (typeof value === 'number') {
-    return ''
-  }
-  return value
-}
-
 // Maneja el cambio en el select
 function handleSelectChange(subjectId: string, cellIndex: number, event: Event) {
   emit('update-value', subjectId, cellIndex, event)
@@ -142,50 +131,15 @@ function handleSelectChange(subjectId: string, cellIndex: number, event: Event) 
 const totalCells = computed(() => props.weeks.length * props.columnsPerWeek)
 const cellsPerSubject = computed(() => totalCells.value)
 
-// Color classes based on scheme - defined as const to avoid recreation
-const colorClasses = {
-  blue: {
-    border: 'border-blue-200',
-    header: 'bg-gradient-to-r from-blue-600 to-blue-500',
-    headerBadge: 'text-blue-100',
-    tableHeader: 'bg-blue-50',
-    headerText: 'text-blue-700',
-    rowHover: 'hover:bg-blue-50/50 transition-colors',
-    focusRing: 'focus:ring-blue-500 focus:border-blue-500',
-    cellFilled: 'bg-blue-50'
-  },
-  purple: {
-    border: 'border-purple-200',
-    header: 'bg-gradient-to-r from-purple-600 to-purple-500',
-    headerBadge: 'text-purple-100',
-    tableHeader: 'bg-purple-50',
-    headerText: 'text-purple-700',
-    rowHover: 'hover:bg-purple-50/50 transition-colors',
-    focusRing: 'focus:ring-purple-500 focus:border-purple-500',
-    cellFilled: 'bg-purple-50'
-  },
-  green: {
-    border: 'border-green-200',
-    header: 'bg-gradient-to-r from-green-600 to-green-500',
-    headerBadge: 'text-green-100',
-    tableHeader: 'bg-green-50',
-    headerText: 'text-green-700',
-    rowHover: 'hover:bg-green-50/50 transition-colors',
-    focusRing: 'focus:ring-green-500 focus:border-green-500',
-    cellFilled: 'bg-green-50'
-  }
-} as const
-
-// Direct property access from colorClasses for template usage
-// Each computed directly accesses the static object with the dynamic color scheme
-const borderColorClass = computed(() => colorClasses[props.colorScheme].border)
-const headerColorClass = computed(() => colorClasses[props.colorScheme].header)
-const headerBadgeColorClass = computed(() => colorClasses[props.colorScheme].headerBadge)
-const tableHeaderColorClass = computed(() => colorClasses[props.colorScheme].tableHeader)
-const headerTextColorClass = computed(() => colorClasses[props.colorScheme].headerText)
-const rowHoverColorClass = computed(() => colorClasses[props.colorScheme].rowHover)
-const focusRingClass = computed(() => colorClasses[props.colorScheme].focusRing)
-const cellFilledClass = computed(() => colorClasses[props.colorScheme].cellFilled)
+// Direct property access from shared colorClasses for template usage
+const borderColorClass = computed(() => editableColorClasses[props.colorScheme].border)
+const headerColorClass = computed(() => editableColorClasses[props.colorScheme].header)
+const headerBadgeColorClass = computed(() => editableColorClasses[props.colorScheme].headerBadge)
+const tableHeaderColorClass = computed(() => editableColorClasses[props.colorScheme].tableHeader)
+const headerTextColorClass = computed(() => editableColorClasses[props.colorScheme].headerText)
+const rowHoverColorClass = computed(() => editableColorClasses[props.colorScheme].rowHover)
+const focusRingClass = computed(() => editableColorClasses[props.colorScheme].focusRing)
+const cellFilledClass = computed(() => editableColorClasses[props.colorScheme].cellFilled)
 </script>
 
 <style scoped>

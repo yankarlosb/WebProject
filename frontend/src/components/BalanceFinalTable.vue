@@ -93,6 +93,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { tiposActividadBalance } from '../utils/constants'
+import { getCellValue } from '../utils/balance-table'
 
 interface Subject {
   id: string
@@ -119,17 +120,6 @@ const consultasStartIndex = computed(() => props.weeksCount * 4)
 
 // Índice de inicio para exámenes = consultas + 4 celdas
 const examenesStartIndex = computed(() => consultasStartIndex.value + 4)
-
-// Convierte valores numéricos legacy a string o devuelve el string
-function getCellValue(value: number | string | undefined): string {
-  if (value === undefined || value === null || value === 0 || value === '') {
-    return ''
-  }
-  if (typeof value === 'number') {
-    return ''
-  }
-  return value
-}
 </script>
 
 <style scoped>

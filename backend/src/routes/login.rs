@@ -1,18 +1,11 @@
 use crate::utils::jwt::{AuthenticatedUser, Claims, LoginResponse, UserInfo, create_jwt};
+use crate::utils::validation::is_valid_username;
 use crate::*;
 use rocket::http::{Cookie, CookieJar, SameSite};
 use rocket::time::Duration;
 use rocket::{catch, get, post};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
-
-/// Regex para validar username (solo alfanumérico y guión bajo)
-fn is_valid_username(username: &str) -> bool {
-    if username.len() < 3 || username.len() > 50 {
-        return false;
-    }
-    username.chars().all(|c| c.is_alphanumeric() || c == '_')
-}
 
 #[derive(Deserialize)]
 pub struct LoginJson {
