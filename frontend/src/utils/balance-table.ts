@@ -159,12 +159,17 @@ export function generateWeekGroups(totalWeeks: number, groupSize: number = 4): W
   }
   
   // Cache the result (limit cache size to prevent memory leaks)
-  if (weekGroupsCache.size > 50) {
-    // Clear oldest entries if cache grows too large
-    const firstKey = weekGroupsCache.keys().next().value
-    if (firstKey) {
-      weekGroupsCache.delete(firstKey)
+  if (weekGroupsCache.size >= 50) {
+    // Clear ~20% of the cache when threshold is reached to reduce cleanup frequency
+    const keysToDelete: string[] = []
+    const iterator = weekGroupsCache.keys()
+    for (let i = 0; i < 10; i++) {
+      const key = iterator.next().value
+      if (key) {
+        keysToDelete.push(key)
+      }
     }
+    keysToDelete.forEach(key => weekGroupsCache.delete(key))
   }
   weekGroupsCache.set(cacheKey, groups)
   
