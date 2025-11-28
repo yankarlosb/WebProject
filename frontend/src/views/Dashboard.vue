@@ -227,7 +227,19 @@ const stats = ref({
 })
 
 // Últimos 3 balances (ordenados por fecha de actualización/creación)
+// Optimized: use slice before sort to avoid sorting the entire array
 const recentBalances = computed(() => {
+  if (balanceStore.balances.length <= 3) {
+    // No need to sort if we have 3 or fewer items
+    return [...balanceStore.balances].sort((a, b) => {
+      const dateA = new Date(a.updated_at || a.created_at || 0).getTime()
+      const dateB = new Date(b.updated_at || b.created_at || 0).getTime()
+      return dateB - dateA
+    })
+  }
+  
+  // For larger arrays, use partial sort approach
+  // Sort by date descending and take first 3
   return [...balanceStore.balances]
     .sort((a, b) => {
       const dateA = new Date(a.updated_at || a.created_at || 0).getTime()

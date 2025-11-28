@@ -36,6 +36,9 @@ export interface EditableBalance {
   subjects: BalanceSubject[]
 }
 
+// Module-level constant for valid activity types - avoids recreating Set on each calculation
+const VALID_ACTIVITY_TYPES = new Set(['C', 'CP', 'S', 'PL', 'TE', 'T', 'PP'])
+
 export const useBalanceStore = defineStore('balance', () => {
   // ============================================================================
   // STATE
@@ -274,13 +277,16 @@ export const useBalanceStore = defineStore('balance', () => {
 
   /**
    * Eliminar una asignatura del balance actual
+   * Optimized: uses filter for cleaner immutable update
    */
   function removeSubject(subjectId: string) {
     if (!currentBalance.value) return
 
-    const index = currentBalance.value.subjects.findIndex(s => s.id === subjectId)
-    if (index !== -1) {
-      currentBalance.value.subjects.splice(index, 1)
+    const originalLength = currentBalance.value.subjects.length
+    currentBalance.value.subjects = currentBalance.value.subjects.filter(s => s.id !== subjectId)
+    
+    // Only mark as dirty if something was actually removed
+    if (currentBalance.value.subjects.length < originalLength) {
       isDirty.value = true
     }
   }
@@ -313,13 +319,10 @@ export const useBalanceStore = defineStore('balance', () => {
 
   /**
    * Calcular totales y coeficientes para cada asignatura
-   * Optimized to use a Set for faster lookups
+   * Optimized: uses module-level Set constant for faster lookups
    */
   function calculateAll() {
     if (!currentBalance.value) return
-
-    // Use a Set for O(1) lookup instead of checking each value against counts object
-    const validTypes = new Set(['C', 'CP', 'S', 'PL', 'TE', 'T', 'PP'])
 
     calculations.value = currentBalance.value.subjects.map(subject => {
       // Initialize counts with explicit type
@@ -336,8 +339,9 @@ export const useBalanceStore = defineStore('balance', () => {
       let total = 0
       
       // Single pass through values with optimized type checking
+      // Uses module-level VALID_ACTIVITY_TYPES constant for O(1) lookup
       for (const val of subject.values) {
-        if (typeof val === 'string' && validTypes.has(val)) {
+        if (typeof val === 'string' && VALID_ACTIVITY_TYPES.has(val)) {
           counts[val as keyof typeof counts]++
           total++
         }

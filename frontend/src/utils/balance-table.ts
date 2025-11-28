@@ -120,14 +120,27 @@ export interface WeekGroup {
   startIndex: number
 }
 
+// Cache for generated week groups to avoid redundant calculations
+// Key format: `${totalWeeks}-${groupSize}`
+const weekGroupsCache = new Map<string, WeekGroup[]>()
+
 /**
  * Generates week groups for balance tables (groups of 4 weeks each)
+ * Results are cached for better performance with repeated calls.
  * 
  * @param totalWeeks - Total number of weeks in the balance
  * @param groupSize - Number of weeks per group (default: 4)
  * @returns Array of week groups with start/end indices and week numbers
  */
 export function generateWeekGroups(totalWeeks: number, groupSize: number = 4): WeekGroup[] {
+  const cacheKey = `${totalWeeks}-${groupSize}`
+  
+  // Return cached result if available
+  const cached = weekGroupsCache.get(cacheKey)
+  if (cached) {
+    return cached
+  }
+  
   const groups: WeekGroup[] = []
   
   for (let i = 0; i < totalWeeks; i += groupSize) {
@@ -144,6 +157,16 @@ export function generateWeekGroups(totalWeeks: number, groupSize: number = 4): W
       startIndex: i * 4, // 4 cells per week (Monday, Tuesday, Wednesday, Thursday)
     })
   }
+  
+  // Cache the result (limit cache size to prevent memory leaks)
+  if (weekGroupsCache.size > 50) {
+    // Clear oldest entries if cache grows too large
+    const firstKey = weekGroupsCache.keys().next().value
+    if (firstKey) {
+      weekGroupsCache.delete(firstKey)
+    }
+  }
+  weekGroupsCache.set(cacheKey, groups)
   
   return groups
 }
