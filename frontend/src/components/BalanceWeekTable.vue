@@ -131,15 +131,19 @@ function handleSelectChange(subjectId: string, cellIndex: number, event: Event) 
 const totalCells = computed(() => props.weeks.length * props.columnsPerWeek)
 const cellsPerSubject = computed(() => totalCells.value)
 
-// Direct property access from shared colorClasses for template usage
-const borderColorClass = computed(() => editableColorClasses[props.colorScheme].border)
-const headerColorClass = computed(() => editableColorClasses[props.colorScheme].header)
-const headerBadgeColorClass = computed(() => editableColorClasses[props.colorScheme].headerBadge)
-const tableHeaderColorClass = computed(() => editableColorClasses[props.colorScheme].tableHeader)
-const headerTextColorClass = computed(() => editableColorClasses[props.colorScheme].headerText)
-const rowHoverColorClass = computed(() => editableColorClasses[props.colorScheme].rowHover)
-const focusRingClass = computed(() => editableColorClasses[props.colorScheme].focusRing)
-const cellFilledClass = computed(() => editableColorClasses[props.colorScheme].cellFilled)
+// Consolidated color classes - single computed for all color properties
+// More efficient than 8 separate computed properties that each track colorScheme
+const colorClasses = computed(() => editableColorClasses[props.colorScheme])
+
+// Direct accessors for template usage
+const borderColorClass = computed(() => colorClasses.value.border)
+const headerColorClass = computed(() => colorClasses.value.header)
+const headerBadgeColorClass = computed(() => colorClasses.value.headerBadge)
+const tableHeaderColorClass = computed(() => colorClasses.value.tableHeader)
+const headerTextColorClass = computed(() => colorClasses.value.headerText)
+const rowHoverColorClass = computed(() => colorClasses.value.rowHover)
+const focusRingClass = computed(() => colorClasses.value.focusRing)
+const cellFilledClass = computed(() => colorClasses.value.cellFilled)
 </script>
 
 <style scoped>

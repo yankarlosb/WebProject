@@ -96,10 +96,13 @@ const props = withDefaults(defineProps<Props>(), {
 const totalCells = computed(() => props.weeks.length * props.columnsPerWeek)
 const cellsPerSubject = computed(() => totalCells.value)
 
-const borderColorClass = computed(() => viewColorClasses[props.colorScheme].border)
-const headerColorClass = computed(() => viewColorClasses[props.colorScheme].header)
-const headerBadgeColorClass = computed(() => viewColorClasses[props.colorScheme].headerBadge)
-const tableHeaderColorClass = computed(() => viewColorClasses[props.colorScheme].tableHeader)
-const headerTextColorClass = computed(() => viewColorClasses[props.colorScheme].headerText)
-const cellFilledClass = computed(() => viewColorClasses[props.colorScheme].cellFilled)
+// Consolidated color classes - single computed for all color properties
+const colorClasses = computed(() => viewColorClasses[props.colorScheme])
+
+const borderColorClass = computed(() => colorClasses.value.border)
+const headerColorClass = computed(() => colorClasses.value.header)
+const headerBadgeColorClass = computed(() => colorClasses.value.headerBadge)
+const tableHeaderColorClass = computed(() => colorClasses.value.tableHeader)
+const headerTextColorClass = computed(() => colorClasses.value.headerText)
+const cellFilledClass = computed(() => colorClasses.value.cellFilled)
 </script>

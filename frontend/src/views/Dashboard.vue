@@ -227,15 +227,17 @@ const stats = ref({
 })
 
 // Últimos 3 balances (ordenados por fecha de actualización/creación)
+// Optimized: Cache date parsing to avoid repeated Date object creation
 const recentBalances = computed(() => {
-  // Sort by date descending and take first 3
-  return [...balanceStore.balances]
-    .sort((a, b) => {
-      const dateA = new Date(a.updated_at || a.created_at || 0).getTime()
-      const dateB = new Date(b.updated_at || b.created_at || 0).getTime()
-      return dateB - dateA
-    })
+  const balancesWithTimestamp = balanceStore.balances.map(b => ({
+    balance: b,
+    timestamp: new Date(b.updated_at || b.created_at || 0).getTime()
+  }))
+  
+  return balancesWithTimestamp
+    .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 3)
+    .map(item => item.balance)
 })
 
 onMounted(async () => {

@@ -75,6 +75,24 @@ impl RateLimiter {
         None
     }
 
+    /// Checks if an IP is blocked and returns remaining time in a single lock acquisition
+    /// More efficient than calling is_blocked + get_block_remaining separately
+    /// Returns (is_blocked, optional_remaining_seconds)
+    pub fn check_block_status(&self, ip: IpAddr) -> (bool, Option<u64>) {
+        let attempts = self.attempts.lock().unwrap();
+        
+        if let Some(attempt) = attempts.get(&ip) {
+            if let Some(blocked_until) = attempt.blocked_until {
+                let now = Instant::now();
+                if now < blocked_until {
+                    return (true, Some((blocked_until - now).as_secs()));
+                }
+            }
+        }
+        
+        (false, None)
+    }
+
     /// Registra un intento fallido de login
     pub fn record_failed_attempt(&self, ip: IpAddr) -> bool {
         let mut attempts = self.attempts.lock().unwrap();
