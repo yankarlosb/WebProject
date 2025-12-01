@@ -271,44 +271,44 @@ pub async fn delete_balance(
     let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
     let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
 
-    // Obtener el nombre del balance antes de eliminar para el log
-    let balance_name = match balance::Entity::find_by_id(balance_id)
+    // Find and delete in one query - get the name for logging and delete in a single db roundtrip
+    let balance_to_delete = match balance::Entity::find_by_id(balance_id)
         .filter(balance::Column::UserId.eq(user_id))
         .one(&db.db)
-        .await 
+        .await
     {
-        Ok(Some(b)) => b.name.clone(),
-        _ => format!("ID:{}", balance_id),
+        Ok(Some(b)) => b,
+        Ok(None) => {
+            return Json(ApiResponse::error(
+                "Balance no encontrado o no tienes permiso para eliminarlo".to_string(),
+            ))
+        }
+        Err(e) => {
+            return Json(ApiResponse::error(format!(
+                "Error al buscar el balance: {}",
+                e
+            )))
+        }
     };
 
-    // Verificar que el balance pertenece al usuario antes de eliminar
-    let result = balance::Entity::delete_many()
-        .filter(balance::Column::Id.eq(balance_id))
-        .filter(balance::Column::UserId.eq(user_id))
-        .exec(&db.db)
-        .await;
+    let balance_name = balance_to_delete.name.clone();
 
-    match result {
-        Ok(delete_result) => {
-            if delete_result.rows_affected > 0 {
-                // Registrar en auditoría
-                let _ = audit::AuditLogBuilder::new(
-                    EventType::Delete,
-                    AuditCategory::Functional,
-                    format!("Usuario '{}' eliminó el balance '{}' (ID: {})", user.0.user_name, balance_name, balance_id),
-                )
-                .user(user_id, &user.0.user_name)
-                .entity(EntityType::Balance, balance_id)
-                .ip(&ip_str)
-                .save(&db.db)
-                .await;
-                
-                Json(ApiResponse::success("Balance eliminado exitosamente".to_string()))
-            } else {
-                Json(ApiResponse::error(
-                    "Balance no encontrado o no tienes permiso para eliminarlo".to_string(),
-                ))
-            }
+    // Delete the found balance using ModelTrait
+    match balance_to_delete.delete(&db.db).await {
+        Ok(_) => {
+            // Registrar en auditoría
+            let _ = audit::AuditLogBuilder::new(
+                EventType::Delete,
+                AuditCategory::Functional,
+                format!("Usuario '{}' eliminó el balance '{}' (ID: {})", user.0.user_name, balance_name, balance_id),
+            )
+            .user(user_id, &user.0.user_name)
+            .entity(EntityType::Balance, balance_id)
+            .ip(&ip_str)
+            .save(&db.db)
+            .await;
+            
+            Json(ApiResponse::success("Balance eliminado exitosamente".to_string()))
         }
         Err(e) => Json(ApiResponse::error(format!(
             "Error al eliminar el balance: {}",

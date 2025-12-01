@@ -28,16 +28,16 @@ pub async fn login_json(
     // Obtener IP del cliente
     let client_ip = remote_addr.map(|addr| addr.ip());
     
-    // Verificar si la IP está bloqueada por rate limiting
+    // Verificar si la IP está bloqueada por rate limiting (single lock acquisition)
     if let Some(ip) = client_ip {
-        if db.rate_limiter.is_blocked(ip) {
-            if let Some(remaining) = db.rate_limiter.get_block_remaining(ip) {
-                return Json(LoginResponse::error(
-                    format!("Demasiados intentos fallidos. Intente de nuevo en {} segundos.", remaining)
-                ));
-            }
+        let (is_blocked, remaining) = db.rate_limiter.check_block_status(ip);
+        if is_blocked {
             return Json(LoginResponse::error(
-                "Demasiados intentos fallidos. Intente más tarde.".to_string()
+                if let Some(secs) = remaining {
+                    format!("Demasiados intentos fallidos. Intente de nuevo en {} segundos.", secs)
+                } else {
+                    "Demasiados intentos fallidos. Intente más tarde.".to_string()
+                }
             ));
         }
     }

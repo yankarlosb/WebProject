@@ -1,15 +1,15 @@
 <template>
   <div :class="[
     'border-2 rounded-lg bg-white overflow-hidden shadow-sm',
-    borderColorClass
+    colorClasses.border
   ]">
     <!-- Header -->
     <div :class="[
       'px-4 py-2.5 flex items-center justify-between',
-      headerColorClass
+      colorClasses.header
     ]">
       <span class="text-sm font-semibold text-white">{{ headerIcon }} {{ title }}</span>
-      <span :class="['text-xs', headerBadgeColorClass]">
+      <span :class="['text-xs', colorClasses.headerBadge]">
         {{ cellsPerSubject }} celdas por asignatura
       </span>
     </div>
@@ -17,10 +17,10 @@
     <!-- Table -->
     <div class="overflow-x-auto">
       <table class="w-full divide-y divide-gray-200">
-        <thead :class="tableHeaderColorClass">
+        <thead :class="colorClasses.tableHeader">
           <tr>
             <th class="px-3 py-2 text-left text-xs font-bold uppercase min-w-[140px]"
-                :class="headerTextColorClass">
+                :class="colorClasses.headerText">
               Asignatura
             </th>
             <th
@@ -29,7 +29,7 @@
               :colspan="columnsPerWeek"
               :class="[
                 'px-1 py-2 text-center text-xs font-semibold border-l border-gray-300',
-                headerTextColorClass
+                colorClasses.headerText
               ]"
             >
               S{{ week }}
@@ -54,7 +54,7 @@
               <span
                 :class="[
                   'inline-block w-11 h-7 leading-7 text-center border border-gray-200 rounded text-xs',
-                  getCellValue(subject.values[startCellIndex + idx]) ? `${cellFilledClass} font-semibold` : 'bg-gray-50 text-gray-400'
+                  getCellValue(subject.values[startCellIndex + idx]) ? `${colorClasses.cellFilled} font-semibold` : 'bg-gray-50 text-gray-400'
                 ]"
               >
                 {{ getCellValue(subject.values[startCellIndex + idx]) || '-' }}
@@ -96,10 +96,6 @@ const props = withDefaults(defineProps<Props>(), {
 const totalCells = computed(() => props.weeks.length * props.columnsPerWeek)
 const cellsPerSubject = computed(() => totalCells.value)
 
-const borderColorClass = computed(() => viewColorClasses[props.colorScheme].border)
-const headerColorClass = computed(() => viewColorClasses[props.colorScheme].header)
-const headerBadgeColorClass = computed(() => viewColorClasses[props.colorScheme].headerBadge)
-const tableHeaderColorClass = computed(() => viewColorClasses[props.colorScheme].tableHeader)
-const headerTextColorClass = computed(() => viewColorClasses[props.colorScheme].headerText)
-const cellFilledClass = computed(() => viewColorClasses[props.colorScheme].cellFilled)
+// Get all color classes for the current scheme - single reactive dependency
+const colorClasses = computed(() => viewColorClasses[props.colorScheme])
 </script>

@@ -99,32 +99,17 @@ pub async fn get_audit_stats(
     db: &State<AppState>,
     _admin: AdminUser,
 ) -> Json<ApiResponseWithData<AuditStats>> {
-    let total = utils::audit::count_logs(&db.db).await.unwrap_or(0);
-    
-    // Contar logins recientes
-    let logins = utils::audit::get_logs_by_event_type(
-        &db.db,
-        audit_logs::EventType::Login,
-        100,
-    )
-    .await
-    .map(|v| v.len() as u64)
-    .unwrap_or(0);
-    
-    // Contar errores recientes
-    let errors = utils::audit::get_logs_by_event_type(
-        &db.db,
-        audit_logs::EventType::Error,
-        100,
-    )
-    .await
-    .map(|v| v.len() as u64)
-    .unwrap_or(0);
+    // Use parallel queries for better performance
+    let (total, logins, errors) = tokio::join!(
+        utils::audit::count_logs(&db.db),
+        utils::audit::count_logs_by_event_type(&db.db, audit_logs::EventType::Login),
+        utils::audit::count_logs_by_event_type(&db.db, audit_logs::EventType::Error)
+    );
 
     let stats = AuditStats {
-        total_logs: total,
-        recent_logins: logins,
-        recent_errors: errors,
+        total_logs: total.unwrap_or(0),
+        recent_logins: logins.unwrap_or(0),
+        recent_errors: errors.unwrap_or(0),
     };
 
     Json(ApiResponseWithData::success(

@@ -403,6 +403,18 @@ pub async fn count_logs(db: &DatabaseConnection) -> Result<u64, sea_orm::DbErr> 
     audit_logs::Entity::find().count(db).await
 }
 
+/// Cuenta logs por tipo de evento (más eficiente que obtener todos y contar)
+pub async fn count_logs_by_event_type(
+    db: &DatabaseConnection,
+    event_type: EventType,
+) -> Result<u64, sea_orm::DbErr> {
+    use sea_orm::PaginatorTrait;
+    audit_logs::Entity::find()
+        .filter(audit_logs::Column::EventType.eq(event_type.as_str()))
+        .count(db)
+        .await
+}
+
 /// Obtiene solo los logs de seguridad (para el panel de admin)
 pub async fn get_security_logs(
     db: &DatabaseConnection,
