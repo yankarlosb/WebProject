@@ -1,27 +1,27 @@
 <template>
   <div :class="[
     'border-2 rounded-lg bg-white overflow-hidden shadow-sm hover:shadow-md transition-shadow',
-    borderColorClass
+    colorClasses.border
   ]">
     <!-- Header -->
     <div :class="[
       'px-4 py-2.5 flex items-center justify-between',
-      headerColorClass
+      colorClasses.header
     ]">
       <span class="text-sm font-semibold text-white">{{ headerIcon }} {{ title }}</span>
       <span :class="[
         'text-xs',
-        headerBadgeColorClass
+        colorClasses.headerBadge
       ]">{{ cellsPerSubject }} celdas por asignatura</span>
     </div>
 
     <!-- Table -->
     <div class="overflow-x-auto">
       <table class="w-full divide-y divide-gray-200">
-        <thead :class="tableHeaderColorClass">
+        <thead :class="colorClasses.tableHeader">
           <tr>
             <th class="px-3 py-2 text-left text-xs font-bold uppercase min-w-[140px]"
-                :class="headerTextColorClass">
+                :class="colorClasses.headerText">
               Asignatura
             </th>
             <th
@@ -30,7 +30,7 @@
               :colspan="columnsPerWeek"
               :class="[
                 'px-1 py-2 text-center text-xs font-semibold border-l border-gray-300',
-                headerTextColorClass
+                colorClasses.headerText
               ]"
             >
               S{{ week }}
@@ -45,7 +45,7 @@
           <tr
             v-for="subject in subjects"
             :key="`subject-${subject.id}`"
-            :class="rowHoverColorClass"
+            :class="colorClasses.rowHover"
           >
             <td class="px-3 py-2 font-semibold text-xs text-gray-900 bg-gray-50 truncate max-w-[140px]" :title="subject.name">
               {{ subject.name }}
@@ -61,8 +61,8 @@
                 @change="(e) => handleSelectChange(subject.id, startCellIndex + idx, e)"
                 :class="[
                   'w-11 h-7 text-center border border-gray-200 rounded text-xs focus:ring-2 outline-none cursor-pointer appearance-none px-1',
-                  focusRingClass,
-                  getCellValue(subject.values[startCellIndex + idx]) ? `${cellFilledClass} font-semibold` : 'bg-white'
+                  colorClasses.focusRing,
+                  getCellValue(subject.values[startCellIndex + idx]) ? `${colorClasses.cellFilled} font-semibold` : 'bg-white'
                 ]"
               >
                 <option v-for="tipo in tiposActividadBalance" :key="tipo.value" :value="tipo.value">
@@ -131,19 +131,9 @@ function handleSelectChange(subjectId: string, cellIndex: number, event: Event) 
 const totalCells = computed(() => props.weeks.length * props.columnsPerWeek)
 const cellsPerSubject = computed(() => totalCells.value)
 
-// Consolidated color classes - single computed for all color properties
-// More efficient than 8 separate computed properties that each track colorScheme
+// Get all color classes for the current scheme - single reactive dependency
+// Returns the complete ColorClasses object, avoiding multiple lookups in template
 const colorClasses = computed(() => editableColorClasses[props.colorScheme])
-
-// Direct accessors for template usage
-const borderColorClass = computed(() => colorClasses.value.border)
-const headerColorClass = computed(() => colorClasses.value.header)
-const headerBadgeColorClass = computed(() => colorClasses.value.headerBadge)
-const tableHeaderColorClass = computed(() => colorClasses.value.tableHeader)
-const headerTextColorClass = computed(() => colorClasses.value.headerText)
-const rowHoverColorClass = computed(() => colorClasses.value.rowHover)
-const focusRingClass = computed(() => colorClasses.value.focusRing)
-const cellFilledClass = computed(() => colorClasses.value.cellFilled)
 </script>
 
 <style scoped>
