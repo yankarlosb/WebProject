@@ -70,6 +70,16 @@ export async function httpRequest<T = void>(
 
     const response = await fetch(url, fetchOptions)
 
+    // Check content type to ensure we're getting JSON
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error(`Expected JSON response but got: ${contentType}`)
+      return {
+        success: false,
+        message: 'El servidor no está disponible o devolvió una respuesta inválida',
+      }
+    }
+
     if (!response.ok) {
       // Try to parse error message from response
       try {

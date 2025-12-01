@@ -1,10 +1,13 @@
 use crate::utils::jwt::{AdminUser, AuthenticatedUser, LeaderUser, SubjectLeaderUser, LeaderOrSubjectLeaderUser};
 use crate::utils::validation::{validate_new_user, validate_profile, validate_subject, is_valid_password};
+use crate::utils::audit;
+use crate::database::audit_logs::{AuditCategory, EntityType, EventType};
 use crate::*;
 use crate::types::{ApiResponse, ApiResponseWithData};
 use crate::{usuarios, asignaturas};
 use rocket::{post, get, put, delete};
 use serde::Deserialize;
+use std::net::SocketAddr;
 
 #[derive(Deserialize)]
 pub struct NewUser {
@@ -19,7 +22,8 @@ pub struct NewUser {
 pub async fn create_user(
     new_user: Json<NewUser>,
     db: &State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
+    remote_addr: Option<SocketAddr>,
 ) -> Json<ApiResponse> {
     let user_name = new_user.user_name.trim();
     let name = new_user.name.trim();
@@ -33,8 +37,15 @@ pub async fn create_user(
         return Json(ApiResponse::error(validation.error.unwrap_or_else(|| "Datos inválidos".to_string())));
     }
 
+    let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
+    let admin_id = admin.0.sub.parse::<i32>().unwrap_or(0);
+
     match utils::db::create_user(&db.db, user_name, name, email, password, role).await {
-        Ok(_) => Json(ApiResponse::success("Usuario creado exitosamente".to_string())),
+        Ok(_) => {
+            // Registrar en auditoría
+            let _ = audit::log_user_created(&db.db, admin_id, &admin.0.user_name, 0, user_name, &ip_str).await;
+            Json(ApiResponse::success("Usuario creado exitosamente".to_string()))
+        },
         Err(e) => Json(ApiResponse::error(format!("Error al crear el usuario: {}", e))),
     }
 }
@@ -43,10 +54,24 @@ pub async fn create_user(
 pub async fn delete_user(
     user_id: i32,
     db: &State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
+    remote_addr: Option<SocketAddr>,
 ) -> Json<ApiResponse> {
+    let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
+    let admin_id = admin.0.sub.parse::<i32>().unwrap_or(0);
+
+    // Obtener nombre del usuario antes de eliminar para el log
+    let user_name = match usuarios::Entity::find_by_id(user_id).one(&db.db).await {
+        Ok(Some(u)) => u.user_name.clone(),
+        _ => format!("ID:{}", user_id),
+    };
+
     match utils::db::delete_user(&db.db, user_id).await {
-        Ok(_) => Json(ApiResponse::success("Usuario eliminado exitosamente".to_string())),
+        Ok(_) => {
+            // Registrar en auditoría
+            let _ = audit::log_user_deleted(&db.db, admin_id, &admin.0.user_name, user_id, &user_name, &ip_str).await;
+            Json(ApiResponse::success("Usuario eliminado exitosamente".to_string()))
+        },
         Err(e) => Json(ApiResponse::error(format!("Error al eliminar el usuario: {}", e))),
     }
 }
@@ -67,10 +92,19 @@ pub async fn modify_user(
     user_id: i32,
     user_data: Json<usuarios::Model>,
     db: &State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
+    remote_addr: Option<SocketAddr>,
 ) -> Json<ApiResponse> {
+    let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
+    let admin_id = admin.0.sub.parse::<i32>().unwrap_or(0);
+    let modified_user_name = user_data.user_name.clone();
+
     match utils::db::modify_user(&db.db, user_id, &user_data.into_inner()).await {
-        Ok(_) => Json(ApiResponse::success("Usuario modificado exitosamente".to_string())),
+        Ok(_) => {
+            // Registrar en auditoría
+            let _ = audit::log_user_modified(&db.db, admin_id, &admin.0.user_name, user_id, &modified_user_name, &ip_str).await;
+            Json(ApiResponse::success("Usuario modificado exitosamente".to_string()))
+        },
         Err(e) => Json(ApiResponse::error(format!("Error al modificar el usuario: {}", e))),
     }
 }
@@ -87,6 +121,7 @@ pub async fn update_profile(
     profile_data: Json<UpdateProfileRequest>,
     db: &State<AppState>,
     user: AuthenticatedUser,
+    remote_addr: Option<SocketAddr>,
 ) -> Json<ApiResponse> {
     let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
     let name = profile_data.name.trim();
@@ -97,9 +132,24 @@ pub async fn update_profile(
     if !validation.valid {
         return Json(ApiResponse::error(validation.error.unwrap_or_else(|| "Datos inválidos".to_string())));
     }
+
+    let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
     
     match utils::db::update_profile(&db.db, user_id, name, email).await {
-        Ok(_) => Json(ApiResponse::success("Perfil actualizado exitosamente".to_string())),
+        Ok(_) => {
+            // Registrar en auditoría
+            let _ = audit::AuditLogBuilder::new(
+                EventType::Update,
+                AuditCategory::Functional,
+                format!("Usuario '{}' actualizó su perfil", user.0.user_name),
+            )
+            .user(user_id, &user.0.user_name)
+            .entity(EntityType::User, user_id)
+            .ip(&ip_str)
+            .save(&db.db)
+            .await;
+            Json(ApiResponse::success("Perfil actualizado exitosamente".to_string()))
+        },
         Err(e) => Json(ApiResponse::error(format!("Error al actualizar el perfil: {}", e))),
     }
 }
@@ -114,6 +164,7 @@ pub async fn change_password(
     password_data: Json<ChangePasswordRequest>,
     db: &State<AppState>,
     user: AuthenticatedUser,
+    remote_addr: Option<SocketAddr>,
 ) -> Json<ApiResponse> {
     let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
     
@@ -121,9 +172,24 @@ pub async fn change_password(
     if !is_valid_password(&password_data.new_password) {
         return Json(ApiResponse::error("Contraseña inválida (mínimo 8 caracteres)".to_string()));
     }
+
+    let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
     
     match utils::db::change_user_password(&db.db, user_id, &password_data.new_password).await {
-        Ok(_) => Json(ApiResponse::success("Contraseña cambiada exitosamente".to_string())),
+        Ok(_) => {
+            // Registrar en auditoría (evento de seguridad)
+            let _ = audit::AuditLogBuilder::new(
+                EventType::Update,
+                AuditCategory::Security,
+                format!("Usuario '{}' cambió su contraseña", user.0.user_name),
+            )
+            .user(user_id, &user.0.user_name)
+            .entity(EntityType::User, user_id)
+            .ip(&ip_str)
+            .save(&db.db)
+            .await;
+            Json(ApiResponse::success("Contraseña cambiada exitosamente".to_string()))
+        },
         Err(e) => Json(ApiResponse::error(format!("Error al cambiar la contraseña: {}", e))),
     }
 }
@@ -146,7 +212,8 @@ pub struct CreateAsignaturaRequest {
 pub async fn create_asignatura(
     asignatura_data: Json<CreateAsignaturaRequest>,
     db: &State<AppState>,
-    _leader: LeaderUser,
+    leader: LeaderUser,
+    remote_addr: Option<SocketAddr>,
 ) -> Json<ApiResponse> {
     // Validar nombre de asignatura
     let validation = validate_subject(&asignatura_data.name);
@@ -154,8 +221,25 @@ pub async fn create_asignatura(
         return Json(ApiResponse::error(validation.error.unwrap_or_else(|| "Nombre de asignatura inválido".to_string())));
     }
     
+    let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
+    let leader_id = leader.0.sub.parse::<i32>().unwrap_or(0);
+    let asignatura_name = asignatura_data.name.clone();
+    
     match utils::db::create_asignatura(&db.db, &asignatura_data.into_inner()).await {
-        Ok(_) => Json(ApiResponse::success("Asignatura creada exitosamente".to_string())),
+        Ok(created_id) => {
+            // Registrar en auditoría
+            let _ = audit::AuditLogBuilder::new(
+                EventType::Create,
+                AuditCategory::Functional,
+                format!("Leader '{}' creó la asignatura '{}'", leader.0.user_name, asignatura_name),
+            )
+            .user(leader_id, &leader.0.user_name)
+            .entity(EntityType::Subject, created_id)
+            .ip(&ip_str)
+            .save(&db.db)
+            .await;
+            Json(ApiResponse::success("Asignatura creada exitosamente".to_string()))
+        },
         Err(e) => Json(ApiResponse::error(format!("Error al crear la asignatura: {}", e))),
     }
 }
@@ -203,12 +287,28 @@ pub async fn update_asignatura(
     asignatura_data: Json<UpdateAsignaturaRequest>,
     db: &State<AppState>,
     user: SubjectLeaderUser,
+    remote_addr: Option<SocketAddr>,
 ) -> Json<ApiResponse> {
     let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
+    let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
+    let asignatura_name = asignatura_data.name.clone();
 
     // Verificar que el SubjectLeader sea el dueño de la asignatura
     match utils::db::update_asignatura(&db.db, asignatura_id, user_id, &asignatura_data.into_inner()).await {
-        Ok(_) => Json(ApiResponse::success("Asignatura actualizada exitosamente".to_string())),
+        Ok(_) => {
+            // Registrar en auditoría
+            let _ = audit::AuditLogBuilder::new(
+                EventType::Update,
+                AuditCategory::Functional,
+                format!("SubjectLeader '{}' actualizó la asignatura '{}'", user.0.user_name, asignatura_name),
+            )
+            .user(user_id, &user.0.user_name)
+            .entity(EntityType::Subject, asignatura_id)
+            .ip(&ip_str)
+            .save(&db.db)
+            .await;
+            Json(ApiResponse::success("Asignatura actualizada exitosamente".to_string()))
+        },
         Err(e) => Json(ApiResponse::error(format!("Error al actualizar la asignatura: {}", e))),
     }
 }
@@ -218,10 +318,27 @@ pub async fn update_asignatura(
 pub async fn delete_asignatura(
     asignatura_id: i32,
     db: &State<AppState>,
-    _leader: LeaderUser,
+    leader: LeaderUser,
+    remote_addr: Option<SocketAddr>,
 ) -> Json<ApiResponse> {
+    let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
+    let leader_id = leader.0.sub.parse::<i32>().unwrap_or(0);
+    
     match utils::db::delete_asignatura(&db.db, asignatura_id).await {
-        Ok(_) => Json(ApiResponse::success("Asignatura eliminada exitosamente".to_string())),
+        Ok(_) => {
+            // Registrar en auditoría
+            let _ = audit::AuditLogBuilder::new(
+                EventType::Delete,
+                AuditCategory::Functional,
+                format!("Leader '{}' eliminó la asignatura con ID {}", leader.0.user_name, asignatura_id),
+            )
+            .user(leader_id, &leader.0.user_name)
+            .entity(EntityType::Subject, asignatura_id)
+            .ip(&ip_str)
+            .save(&db.db)
+            .await;
+            Json(ApiResponse::success("Asignatura eliminada exitosamente".to_string()))
+        },
         Err(e) => Json(ApiResponse::error(format!("Error al eliminar la asignatura: {}", e))),
     }
 }

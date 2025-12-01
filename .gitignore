@@ -53,3 +53,5 @@ documents/
 *.sql*
 *.sh
 *.fish
+*.tex
+Plantilla.md

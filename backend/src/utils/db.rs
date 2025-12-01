@@ -169,7 +169,7 @@ use chrono::Utc;
 pub async fn create_asignatura(
     db: &DatabaseConnection,
     data: &CreateAsignaturaRequest,
-) -> Result<(), sea_orm::DbErr> {
+) -> Result<i32, sea_orm::DbErr> {
     use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
     // Buscar el usuario por user_name con role 'subjectLeader'
@@ -206,8 +206,8 @@ pub async fn create_asignatura(
         ..Default::default()
     };
 
-    new_asignatura.insert(db).await?;
-    Ok(())
+    let result = new_asignatura.insert(db).await?;
+    Ok(result.id)
 }
 
 /// Listar asignaturas - filtra según el rol del usuario

@@ -140,29 +140,88 @@
 
           <!-- Tab: Logs de Auditoría -->
           <div v-if="activeTab === 'logs'" class="p-6">
-            <h2 class="text-xl font-bold text-blue-700 mb-6">Registro de Actividad</h2>
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h2 class="text-xl font-bold text-blue-700">Registro de Actividad</h2>
+                <p class="text-sm text-gray-600 mt-1">Trazas de auditoría del sistema</p>
+              </div>
+              <div class="flex gap-2">
+                <select
+                  v-model="logFilter"
+                  class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="all">Todos los eventos</option>
+                  <option value="security">Solo seguridad</option>
+                </select>
+                <AppButton variant="ghost" size="sm" @click="loadAuditLogs">
+                  <template #icon>
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </template>
+                  Actualizar
+                </AppButton>
+              </div>
+            </div>
 
-            <div class="space-y-3">
+            <!-- Loading state -->
+            <div v-if="isLoadingLogs" class="text-center py-12">
+              <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p class="text-gray-600 mt-4">Cargando logs...</p>
+            </div>
+
+            <!-- Empty state -->
+            <div v-else-if="auditLogs.length === 0" class="text-center py-12 bg-gray-50 rounded-lg">
+              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <h3 class="mt-2 text-sm font-medium text-gray-900">No hay registros de auditoría</h3>
+              <p class="mt-1 text-sm text-gray-500">Los eventos del sistema aparecerán aquí</p>
+            </div>
+
+            <!-- Logs list -->
+            <div v-else class="space-y-3">
               <div
-                v-for="log in mockLogs"
+                v-for="log in auditLogs"
                 :key="log.id"
-                class="bg-gray-50 border border-gray-200 rounded-lg p-4"
+                class="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:bg-gray-100 transition-colors"
               >
                 <div class="flex items-start justify-between">
                   <div class="flex items-start gap-3">
                     <div
                       class="w-2 h-2 rounded-full mt-2"
-                      :class="log.type === 'create' ? 'bg-green-500' :
-                             log.type === 'update' ? 'bg-blue-500' :
-                             log.type === 'delete' ? 'bg-red-500' :
-                             'bg-gray-500'"
+                      :class="getEventBgColor(log.event_type)"
                     ></div>
                     <div>
-                      <p class="text-sm font-medium text-gray-900">{{ log.action }}</p>
+                      <div class="flex items-center gap-2">
+                        <p class="text-sm font-medium text-gray-900">{{ log.description }}</p>
+                        <span
+                          class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                          :class="log.category === 'SECURITY' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'"
+                        >
+                          {{ log.category === 'SECURITY' ? 'Seguridad' : 'Funcional' }}
+                        </span>
+                        <span
+                          v-if="!log.success"
+                          class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800"
+                        >
+                          Fallido
+                        </span>
+                      </div>
                       <p class="text-xs text-gray-600 mt-1">
-                        Por {{ log.user }} • {{ log.date }}
+                        <span v-if="log.user_name">Por {{ log.user_name }} • </span>
+                        <span v-if="log.ip_address">IP: {{ log.ip_address }} • </span>
+                        {{ formatLogDate(log.created_at) }}
+                      </p>
+                      <p v-if="log.error_message" class="text-xs text-red-600 mt-1">
+                        Error: {{ log.error_message }}
                       </p>
                     </div>
+                  </div>
+                  <div class="text-right">
+                    <span class="text-xs px-2 py-1 rounded" :class="getEventTextColor(log.event_type)">
+                      {{ getEventLabel(log.event_type) }}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -244,10 +303,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useUIStore } from '../stores/ui'
 import { useUsersStore } from '../stores/users'
+import { 
+  getAuditLogs, 
+  getSecurityLogs, 
+  formatLogDate,
+  getEventConfig,
+  type AuditLog 
+} from '../services/audit'
 import AppLayout from '../components/AppLayout.vue'
 import AppCard from '../components/AppCard.vue'
 import AppButton from '../components/AppButton.vue'
@@ -275,32 +341,59 @@ const tabs = [
 // Cargar usuarios al montar el componente
 onMounted(async () => {
   await usersStore.fetchUsers()
+  // Cargar logs de auditoría
+  await loadAuditLogs()
 })
 
-// Logs simulados
-const mockLogs = ref([
-  {
-    id: 1,
-    action: 'Nuevo balance creado para 1er año',
-    user: 'Admin Usuario',
-    date: new Date().toLocaleString(),
-    type: 'create',
-  },
-  {
-    id: 2,
-    action: 'Usuario "Profesor García" actualizado',
-    user: 'Admin Usuario',
-    date: new Date(Date.now() - 3600000).toLocaleString(),
-    type: 'update',
-  },
-  {
-    id: 3,
-    action: 'Asignatura "Programación Web" eliminada',
-    user: 'Dra. Martínez',
-    date: new Date(Date.now() - 7200000).toLocaleString(),
-    type: 'delete',
-  },
-])
+// ============================================================================
+// AUDITORÍA
+// ============================================================================
+
+// Estado de auditoría
+const logFilter = ref<'all' | 'security'>('all')
+const isLoadingLogs = ref(false)
+const auditLogs = ref<AuditLog[]>([])
+
+// Cargar logs de auditoría
+async function loadAuditLogs() {
+  isLoadingLogs.value = true
+  try {
+    const result = logFilter.value === 'security' 
+      ? await getSecurityLogs()
+      : await getAuditLogs()
+    
+    if (result.success && result.data) {
+      auditLogs.value = result.data
+    }
+  } finally {
+    isLoadingLogs.value = false
+  }
+}
+
+// Helpers para colores de eventos
+function getEventBgColor(eventType: string): string {
+  const config = getEventConfig(eventType)
+  return config.bgColor
+}
+
+function getEventTextColor(eventType: string): string {
+  const config = getEventConfig(eventType)
+  return config.color
+}
+
+function getEventLabel(eventType: string): string {
+  const config = getEventConfig(eventType)
+  return config.label
+}
+
+// Recargar logs cuando cambia el filtro
+watch(logFilter, () => {
+  loadAuditLogs()
+})
+
+// ============================================================================
+// GESTIÓN DE USUARIOS
+// ============================================================================
 
 // Formulario de usuario
 const emptyUserForm = () => ({

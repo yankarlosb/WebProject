@@ -3,6 +3,8 @@
 //! Los balances se almacenan con sus asignaturas y valores en formato JSONB
 
 use crate::utils::jwt::AuthenticatedUser;
+use crate::utils::audit;
+use crate::database::audit_logs::{EventType, AuditCategory, EntityType};
 use crate::*;
 use crate::types::{ApiResponse, ApiResponseWithData};
 use crate::database::balance;
@@ -10,6 +12,7 @@ use rocket::{post, get, put, delete};
 use sea_orm::*;
 use serde::{Deserialize, Serialize};
 use chrono::NaiveDate;
+use std::net::SocketAddr;
 
 /// Estructura para crear/actualizar un balance
 #[derive(Debug, Deserialize)]
@@ -119,6 +122,7 @@ pub async fn create_balance(
     balance_data: Json<BalanceRequest>,
     db: &State<AppState>,
     user: AuthenticatedUser,
+    remote_addr: Option<SocketAddr>,
 ) -> Json<ApiResponseWithData<BalanceResponse>> {
     let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
     let data = balance_data.into_inner();
@@ -138,7 +142,7 @@ pub async fn create_balance(
 
     let new_balance = balance::ActiveModel {
         user_id: Set(user_id),
-        name: Set(name),
+        name: Set(name.clone()),
         academic_year: Set(data.academic_year),
         period: Set(data.period),
         academic_year_text: Set(data.academic_year_text),
@@ -148,11 +152,27 @@ pub async fn create_balance(
         ..Default::default()
     };
 
+    let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
+
     match new_balance.insert(&db.db).await {
-        Ok(inserted) => Json(ApiResponseWithData::success(
-            "Balance creado exitosamente".to_string(),
-            inserted.into(),
-        )),
+        Ok(inserted) => {
+            // Registrar en auditoría
+            let _ = audit::AuditLogBuilder::new(
+                EventType::Create,
+                AuditCategory::Functional,
+                format!("Usuario '{}' creó el balance '{}'", user.0.user_name, name),
+            )
+            .user(user_id, &user.0.user_name)
+            .entity(EntityType::Balance, inserted.id)
+            .ip(&ip_str)
+            .save(&db.db)
+            .await;
+            
+            Json(ApiResponseWithData::success(
+                "Balance creado exitosamente".to_string(),
+                inserted.into(),
+            ))
+        },
         Err(e) => Json(ApiResponseWithData::error(format!(
             "Error al crear el balance: {}",
             e
@@ -167,6 +187,7 @@ pub async fn update_balance(
     balance_data: Json<BalanceRequest>,
     db: &State<AppState>,
     user: AuthenticatedUser,
+    remote_addr: Option<SocketAddr>,
 ) -> Json<ApiResponseWithData<BalanceResponse>> {
     let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
     let data = balance_data.into_inner();
@@ -176,6 +197,8 @@ pub async fn update_balance(
         .filter(balance::Column::UserId.eq(user_id))
         .one(&db.db)
         .await;
+
+    let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
 
     match existing {
         Ok(Some(balance_model)) => {
@@ -193,7 +216,7 @@ pub async fn update_balance(
             let name = generate_balance_name(&data.academic_year, &data.period, &data.academic_year_text);
 
             let mut active_model: balance::ActiveModel = balance_model.into();
-            active_model.name = Set(name);
+            active_model.name = Set(name.clone());
             active_model.academic_year = Set(data.academic_year);
             active_model.period = Set(data.period);
             active_model.academic_year_text = Set(data.academic_year_text);
@@ -203,10 +226,24 @@ pub async fn update_balance(
             active_model.updated_at = Set(Some(chrono::Utc::now().naive_utc()));
 
             match active_model.update(&db.db).await {
-                Ok(updated) => Json(ApiResponseWithData::success(
-                    "Balance actualizado exitosamente".to_string(),
-                    updated.into(),
-                )),
+                Ok(updated) => {
+                    // Registrar en auditoría
+                    let _ = audit::AuditLogBuilder::new(
+                        EventType::Update,
+                        AuditCategory::Functional,
+                        format!("Usuario '{}' actualizó el balance '{}'", user.0.user_name, name),
+                    )
+                    .user(user_id, &user.0.user_name)
+                    .entity(EntityType::Balance, balance_id)
+                    .ip(&ip_str)
+                    .save(&db.db)
+                    .await;
+                    
+                    Json(ApiResponseWithData::success(
+                        "Balance actualizado exitosamente".to_string(),
+                        updated.into(),
+                    ))
+                },
                 Err(e) => Json(ApiResponseWithData::error(format!(
                     "Error al actualizar el balance: {}",
                     e
@@ -229,8 +266,20 @@ pub async fn delete_balance(
     balance_id: i32,
     db: &State<AppState>,
     user: AuthenticatedUser,
+    remote_addr: Option<SocketAddr>,
 ) -> Json<ApiResponse> {
     let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
+    let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
+
+    // Obtener el nombre del balance antes de eliminar para el log
+    let balance_name = match balance::Entity::find_by_id(balance_id)
+        .filter(balance::Column::UserId.eq(user_id))
+        .one(&db.db)
+        .await 
+    {
+        Ok(Some(b)) => b.name.clone(),
+        _ => format!("ID:{}", balance_id),
+    };
 
     // Verificar que el balance pertenece al usuario antes de eliminar
     let result = balance::Entity::delete_many()
@@ -242,6 +291,18 @@ pub async fn delete_balance(
     match result {
         Ok(delete_result) => {
             if delete_result.rows_affected > 0 {
+                // Registrar en auditoría
+                let _ = audit::AuditLogBuilder::new(
+                    EventType::Delete,
+                    AuditCategory::Functional,
+                    format!("Usuario '{}' eliminó el balance '{}' (ID: {})", user.0.user_name, balance_name, balance_id),
+                )
+                .user(user_id, &user.0.user_name)
+                .entity(EntityType::Balance, balance_id)
+                .ip(&ip_str)
+                .save(&db.db)
+                .await;
+                
                 Json(ApiResponse::success("Balance eliminado exitosamente".to_string()))
             } else {
                 Json(ApiResponse::error(

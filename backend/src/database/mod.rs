@@ -3,5 +3,6 @@
 pub mod prelude;
 
 pub mod asignaturas;
+pub mod audit_logs;
 pub mod balance;
 pub mod usuarios;

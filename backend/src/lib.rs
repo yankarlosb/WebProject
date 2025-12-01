@@ -34,7 +34,8 @@ use routes::login::{
     login_json,
     logout,
     verify_auth,
-    unauthorized
+    unauthorized,
+    forbidden
 };
 
 use routes::manager::{
@@ -57,6 +58,12 @@ use routes::balance::{
     create_balance,
     update_balance,
     delete_balance
+};
+
+use routes::audit::{
+    list_audit_logs,
+    list_security_logs,
+    get_audit_stats
 };
 
 pub struct AppState {
@@ -98,7 +105,11 @@ pub async fn run() -> Rocket<Build> {
             create_balance,
             update_balance,
             delete_balance,
+            // Rutas de auditoría
+            list_audit_logs,
+            list_security_logs,
+            get_audit_stats,
         ])
-        .register("/", catchers![unauthorized])
+        .register("/", catchers![unauthorized, forbidden])
         .mount("/", FileServer::from(frontend_path))
 }

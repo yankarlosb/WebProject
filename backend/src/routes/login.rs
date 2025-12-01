@@ -1,5 +1,6 @@
 use crate::utils::jwt::{AuthenticatedUser, Claims, LoginResponse, UserInfo, create_jwt};
 use crate::utils::validation::is_valid_username;
+use crate::utils::audit;
 use crate::*;
 use rocket::http::{Cookie, CookieJar, SameSite};
 use rocket::time::Duration;
@@ -46,6 +47,8 @@ pub async fn login_json(
         // Registrar intento fallido
         if let Some(ip) = client_ip {
             db.rate_limiter.record_failed_attempt(ip);
+            // Registrar en auditoría
+            let _ = audit::log_login_failed(&db.db, username, &ip.to_string(), "Usuario inválido").await;
         }
         return Json(LoginResponse::error("Usuario inválido".to_string()));
     }
@@ -61,6 +64,8 @@ pub async fn login_json(
             // Registrar intento fallido
             if let Some(ip) = client_ip {
                 db.rate_limiter.record_failed_attempt(ip);
+                // Registrar en auditoría
+                let _ = audit::log_login_failed(&db.db, username, &ip.to_string(), "Usuario no encontrado").await;
             }
             return Json(LoginResponse::error("Credenciales inválidas".to_string()));
         }
@@ -75,6 +80,8 @@ pub async fn login_json(
         // Registrar intento fallido
         if let Some(ip) = client_ip {
             let blocked = db.rate_limiter.record_failed_attempt(ip);
+            // Registrar en auditoría
+            let _ = audit::log_login_failed(&db.db, username, &ip.to_string(), "Contraseña incorrecta").await;
             if blocked {
                 return Json(LoginResponse::error(
                     "Demasiados intentos fallidos. Cuenta bloqueada temporalmente.".to_string()
@@ -119,6 +126,10 @@ pub async fn login_json(
             cookie.set_max_age(Duration::seconds(10800));
             cookies.add(cookie);
 
+            // Registrar login exitoso en auditoría
+            let ip_str = client_ip.map(|ip| ip.to_string()).unwrap_or_else(|| "unknown".to_string());
+            let _ = audit::log_login_success(&db.db, entity.id, &entity.user_name, &ip_str).await;
+
             // Crear información del usuario para la respuesta
             let user_info = UserInfo {
                 id: entity.id,
@@ -139,9 +150,21 @@ pub async fn login_json(
     }
 }
 
-/// Logout - Elimina la cookie JWT y redirecciona al login
+/// Logout - Elimina la cookie JWT y registra en auditoría
 #[post("/logout")]
-pub fn logout(cookies: &CookieJar<'_>) -> Redirect {
+pub async fn logout(
+    cookies: &CookieJar<'_>,
+    db: &State<AppState>,
+    user: Option<AuthenticatedUser>,
+    remote_addr: Option<SocketAddr>,
+) -> Redirect {
+    // Registrar logout en auditoría si hay usuario
+    if let Some(auth_user) = user {
+        let user_id = auth_user.0.sub.parse::<i32>().unwrap_or(0);
+        let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
+        let _ = audit::log_logout(&db.db, user_id, &auth_user.0.user_name, &ip_str).await;
+    }
+    
     // Eliminar la cookie JWT
     cookies.remove(Cookie::build("jwt_token"));
 
@@ -205,6 +228,30 @@ pub fn unauthorized(req: &rocket::Request<'_>) -> (rocket::http::Status, rocket:
             rocket::serde::json::json!({
                 "redirect": "/login",
                 "message": "Por favor, inicie sesión para acceder a esta página."
+            })
+        )
+    }
+}
+
+/// Catcher para error 403 (Prohibido/Forbidden)
+/// Devuelve JSON para peticiones API
+#[catch(403)]
+pub fn forbidden(req: &rocket::Request<'_>) -> (rocket::http::Status, rocket::serde::json::Value) {
+    if req.uri().path().as_str().starts_with("/api/") {
+        (
+            rocket::http::Status::Forbidden,
+            rocket::serde::json::json!({
+                "success": false,
+                "message": "Acceso denegado. No tiene permisos para esta operación.",
+                "alert": "error"
+            })
+        )
+    } else {
+        (
+            rocket::http::Status::Forbidden,
+            rocket::serde::json::json!({
+                "redirect": "/",
+                "message": "No tiene permisos para acceder a esta página."
             })
         )
     }
