@@ -267,7 +267,7 @@
             label="Contraseña"
             placeholder="••••••••"
             required
-            hint="Mínimo 8 caracteres"
+            hint="Mínimo 8 caracteres, mayúsculas, minúsculas y caracteres especiales"
           />
         </div>
 
@@ -473,7 +473,7 @@ async function saveUser() {
       return
     }
     if (!isValidPassword(trimmedPassword)) {
-      uiStore.showError('Contraseña inválida (mínimo 8 caracteres)')
+      uiStore.showError('Contraseña inválida (mínimo 8 caracteres, mayúsculas, minúsculas y caracteres especiales)')
       return
     }
   }

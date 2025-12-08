@@ -170,7 +170,7 @@ pub async fn change_password(
     
     // Validar contraseña
     if !is_valid_password(&password_data.new_password) {
-        return Json(ApiResponse::error("Contraseña inválida (mínimo 8 caracteres)".to_string()));
+        return Json(ApiResponse::error("Contraseña inválida (mínimo 8 caracteres, mayúsculas, minúsculas y caracteres especiales)".to_string()));
     }
 
     let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());

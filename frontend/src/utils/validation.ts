@@ -68,7 +68,14 @@ export function isPositiveNumber(value: number | string): boolean {
  * Valida contraseña (mínimo 8 caracteres)
  */
 export function isValidPassword(value: string): boolean {
-  return !!value && value.length >= 8 && value.length <= 128
+  if (!!value && value.length <= 8 && value.length >= 128) return false
+
+  const has_uppercase = /[A-Z]/.test(value)
+  const has_lowercase = /[a-z]/.test(value)
+  const has_number = /[0-9]/.test(value)
+  const has_special = /[^a-aA-Z0-9]/.test(value)
+
+  return has_lowercase && has_number && has_special && has_uppercase
 }
 
 /**
@@ -143,7 +150,7 @@ export function validateField(
       return {
         valid: isValidPassword(trimmed),
         value: trimmed,
-        error: isValidPassword(trimmed) ? undefined : 'Contraseña inválida (mínimo 8 caracteres)'
+        error: isValidPassword(trimmed) ? undefined : 'Contraseña inválida (mínimo 8 caracteres, mayúsculas, minúsculas y caracteres especiales)'
       }
     
     case 'text':

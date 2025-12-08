@@ -57,7 +57,16 @@ pub fn is_valid_subject_name(name: &str) -> bool {
 
 /// Valida contraseña (mínimo 8 caracteres)
 pub fn is_valid_password(password: &str) -> bool {
-    password.len() >= 8 && password.len() <= 128
+    if password.len() <= 8 && password.len() >= 128 {
+        return false
+    }
+
+    let has_uppercase = password.chars().any(|c| c.is_uppercase());
+    let has_lowercase = password.chars().any(|c| c.is_lowercase());
+    let has_special = password.chars().any(|c| c.is_alphanumeric());
+    let has_number = password.chars().any(|c| c.is_numeric());
+    
+    has_lowercase && has_uppercase && has_special && has_number
 }
 
 /// Sanitiza texto removiendo caracteres peligrosos para SQL/XSS
@@ -98,7 +107,7 @@ pub fn validate_new_user(username: &str, name: &str, email: &str, password: &str
         return ValidationResult::error("Email inválido");
     }
     if !is_valid_password(password) {
-        return ValidationResult::error("Contraseña inválida (mínimo 8 caracteres)");
+        return Json(ApiResponse::error("Contraseña inválida (mínimo 8 caracteres, mayúsculas, minúsculas y caracteres especiales)".to_string()));
     }
     ValidationResult::ok()
 }

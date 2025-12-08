@@ -96,7 +96,7 @@
               placeholder="••••••••"
               required
               :error="passwordErrors.newPassword"
-              hint="Mínimo 8 caracteres"
+              hint="Mínimo 8 caracteres, mayúsculas, minúsculas y caracteres especiales"
             >
               <template #iconLeft>
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -287,7 +287,7 @@ async function handleChangePassword() {
   }
 
   if (!isValidPassword(trimmedPassword)) {
-    passwordErrors.value.newPassword = 'Contraseña inválida (mínimo 8 caracteres)'
+    passwordErrors.value.newPassword = 'Contraseña inválida (mínimo 8 caracteres, mayúsculas, minúsculas y caracteres especiales)'
     return
   }
 
