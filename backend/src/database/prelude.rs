@@ -2,5 +2,6 @@
 
 pub use super::asignaturas::Entity as Asignaturas;
 pub use super::audit_logs::Entity as AuditLogs;
-pub use super::balance::Entity as Balances;
+pub use super::balance_fragments::Entity as BalanceFragments;
+pub use super::balances::Entity as Balances;
 pub use super::usuarios::Entity as Usuarios;

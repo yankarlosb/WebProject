@@ -2,6 +2,7 @@
   Dashboard - Vista principal rediseñada
   Usa el nuevo sistema de componentes y stores
   Balances cargados desde la API (base de datos)
+  SubjectLeaders ven sus fragmentos pendientes
 -->
 <template>
   <AppLayout>
@@ -17,7 +18,7 @@
           </p>
         </div>
         <AppButton
-          v-if="authStore.isLeaderOrSubjectLeader"
+          v-if="authStore.isLeader"
           variant="primary"
           size="lg"
           @click="createNewBalance"
@@ -47,21 +48,71 @@
         color="green"
       />
       <StatsCard
+        title="Balances"
+        :value="balanceStore.balancesCount"
+        icon="document"
+        color="purple"
+      />
+      <StatsCard
+        v-if="authStore.isSubjectLeader"
+        title="Pendientes"
+        :value="balanceStore.pendingCount"
+        icon="clock"
+        color="yellow"
+      />
+      <StatsCard
+        v-else
         title="Semanas"
         :value="stats.weeks"
         icon="clock"
         color="yellow"
       />
-      <StatsCard
-        title="Balances Guardados"
-        :value="balanceStore.balancesCount"
-        icon="document"
-        color="purple"
-      />
     </div>
 
-    <!-- Balances Recientes -->
-    <AppCard title="Balances Recientes">
+    <!-- Fragmentos Pendientes (solo SubjectLeaders) -->
+    <AppCard 
+      v-if="authStore.isSubjectLeader && balanceStore.pendingFragments.length > 0" 
+      title="Fragmentos Pendientes" 
+      class="mb-8"
+    >
+      <p class="text-sm text-gray-600 mb-4">
+        Tienes {{ balanceStore.pendingCount }} fragmento(s) pendiente(s) de completar
+      </p>
+      
+      <div class="space-y-3">
+        <div
+          v-for="fragment in balanceStore.pendingFragments"
+          :key="fragment.fragment_id"
+          @click="editFragment(fragment)"
+          class="border rounded-lg p-4 cursor-pointer transition-all hover:shadow-md hover:border-blue-300"
+          :class="fragment.status === 'pending' ? 'border-yellow-200 bg-yellow-50' : 'border-blue-200 bg-blue-50'"
+        >
+          <div class="flex items-start justify-between">
+            <div class="flex-1 min-w-0">
+              <h4 class="font-medium text-gray-900">{{ fragment.asignatura_name }}</h4>
+              <p class="text-sm text-gray-600 mt-0.5">Balance: {{ fragment.balance_name }}</p>
+              <p v-if="fragment.deadline" class="text-xs text-amber-600 mt-1">
+                Límite: {{ formatDate(fragment.deadline) }}
+              </p>
+            </div>
+            <div class="ml-4 flex items-center gap-2">
+              <span 
+                class="px-2 py-1 text-xs font-medium rounded-full"
+                :class="fragment.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'"
+              >
+                {{ fragment.status === 'pending' ? 'Pendiente' : 'En Progreso' }}
+              </span>
+              <svg class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </AppCard>
+
+    <!-- Balances (para Leaders) -->
+    <AppCard v-if="authStore.isLeader" title="Balances Recientes">
       <!-- Loading state -->
       <div v-if="balanceStore.isLoading" class="text-center py-12">
         <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -88,7 +139,8 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         <h3 class="mt-2 text-sm font-medium text-gray-900">No hay balances</h3>
-        <div class="mt-6" v-if="authStore.isLeaderOrSubjectLeader">
+        <p class="mt-1 text-sm text-gray-500">Crea un nuevo balance para comenzar</p>
+        <div class="mt-6">
           <AppButton variant="primary" @click="createNewBalance">
             <template #icon>
               <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -112,10 +164,10 @@
                 Curso
               </th>
               <th class="px-3 sm:px-4 py-3 text-left text-xs font-bold text-blue-700 uppercase tracking-wider">
-                Período
+                Estado
               </th>
               <th class="hidden md:table-cell px-3 sm:px-4 py-3 text-left text-xs font-bold text-blue-700 uppercase tracking-wider">
-                Asig.
+                Progreso
               </th>
               <th class="hidden lg:table-cell px-3 sm:px-4 py-3 text-left text-xs font-bold text-blue-700 uppercase tracking-wider">
                 Fecha
@@ -139,16 +191,27 @@
               <td class="hidden sm:table-cell px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-blue-800">
                 {{ balance.academic_year_text }}
               </td>
-              <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-blue-800">
-                {{ balance.period === '1ero' ? '1er Sem.' : '2do Sem.' }}
-              </td>
-              <td class="hidden md:table-cell px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-blue-800">
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                  {{ balance.subjects.length }}
+              <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-sm">
+                <span 
+                  class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                  :class="statusClass(balance.status)"
+                >
+                  {{ statusLabel(balance.status) }}
                 </span>
               </td>
+              <td class="hidden md:table-cell px-3 sm:px-4 py-3 whitespace-nowrap text-sm">
+                <div class="flex items-center gap-2">
+                  <div class="w-20 bg-gray-200 rounded-full h-2">
+                    <div 
+                      class="bg-green-600 h-2 rounded-full transition-all"
+                      :style="{ width: `${balance.progress.percentage}%` }"
+                    ></div>
+                  </div>
+                  <span class="text-xs text-gray-500">{{ balance.progress.percentage.toFixed(0) }}%</span>
+                </div>
+              </td>
               <td class="hidden lg:table-cell px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                {{ formatDate(balance.updated_at || balance.created_at) }}
+                {{ formatDate(balance.created_at) }}
               </td>
               <td class="px-3 sm:px-4 py-3 whitespace-nowrap text-center">
                 <div class="flex justify-center gap-1">
@@ -163,7 +226,6 @@
                     </svg>
                   </button>
                   <button
-                    v-if="authStore.isLeader"
                     @click="editBalance(balance.id)"
                     class="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition"
                     title="Editar balance"
@@ -173,7 +235,6 @@
                     </svg>
                   </button>
                   <button
-                    v-if="authStore.isLeader"
                     @click="confirmDeleteBalance(balance)"
                     class="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition"
                     title="Eliminar balance"
@@ -199,6 +260,20 @@
         </div>
       </div>
     </AppCard>
+
+    <!-- Vista para SubjectLeaders sin fragmentos pendientes -->
+    <AppCard 
+      v-if="authStore.isSubjectLeader && balanceStore.pendingFragments.length === 0 && !balanceStore.isLoading"
+      title="Sin Tareas Pendientes"
+    >
+      <div class="text-center py-8">
+        <svg class="mx-auto h-12 w-12 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">¡Todo al día!</h3>
+        <p class="mt-1 text-sm text-gray-500">No tienes fragmentos pendientes de completar</p>
+      </div>
+    </AppCard>
   </AppLayout>
 </template>
 
@@ -207,7 +282,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useAsignaturasStore } from '../stores/asignaturas'
-import { useBalanceStore, type Balance } from '../stores/balance'
+import { useBalanceStore, type BalanceListItem, type PendingFragment } from '../stores/balance'
 import { useUIStore } from '../stores/ui'
 import AppLayout from '../components/AppLayout.vue'
 import AppCard from '../components/AppCard.vue'
@@ -226,24 +301,37 @@ const stats = ref({
   weeks: 15,
 })
 
-// Últimos 3 balances (ordenados por fecha de actualización/creación)
+// Últimos 3 balances (ordenados por fecha de creación)
 const recentBalances = computed(() => {
-  // Sort by date descending and take first 3
   return [...balanceStore.balances]
     .sort((a, b) => {
-      const dateA = new Date(a.updated_at || a.created_at || 0).getTime()
-      const dateB = new Date(b.updated_at || b.created_at || 0).getTime()
+      const dateA = new Date(a.created_at || 0).getTime()
+      const dateB = new Date(b.created_at || 0).getTime()
       return dateB - dateA
     })
     .slice(0, 3)
 })
 
 onMounted(async () => {
-  // Load balances and asignaturas in parallel for better performance
-  await Promise.all([
-    loadBalances(),
-    asignaturasStore.asignaturas.length === 0 ? asignaturasStore.loadAsignaturas() : Promise.resolve()
-  ])
+  // Load data in parallel for better performance
+  const promises: Promise<unknown>[] = []
+  
+  // Cargar asignaturas si no están cargadas
+  if (asignaturasStore.asignaturas.length === 0) {
+    promises.push(asignaturasStore.loadAsignaturas())
+  }
+  
+  // Cargar balances para Leaders
+  if (authStore.isLeader) {
+    promises.push(balanceStore.fetchBalances())
+  }
+  
+  // Cargar fragmentos pendientes para SubjectLeaders
+  if (authStore.isSubjectLeader) {
+    promises.push(balanceStore.fetchPendingFragments())
+  }
+  
+  await Promise.all(promises)
 })
 
 async function loadBalances() {
@@ -251,7 +339,7 @@ async function loadBalances() {
 }
 
 function createNewBalance() {
-  balanceStore.resetBalance()
+  balanceStore.startNewBalance()
   router.push('/balance')
 }
 
@@ -263,10 +351,20 @@ function editBalance(id: number) {
   router.push({ path: '/balance', query: { id: id.toString() } })
 }
 
-function confirmDeleteBalance(balance: Balance) {
+function editFragment(fragment: PendingFragment) {
+  router.push({ 
+    path: '/balance/fragment', 
+    query: { 
+      balanceId: fragment.balance_id.toString(), 
+      asignaturaId: fragment.asignatura_id.toString() 
+    } 
+  })
+}
+
+function confirmDeleteBalance(balance: BalanceListItem) {
   uiStore.openConfirm({
     title: 'Eliminar Balance',
-    message: `¿Estás seguro de que deseas eliminar "${balance.name}"? Esta acción no se puede deshacer.`,
+    message: `¿Estás seguro de que deseas eliminar "${balance.name}"? Esta acción eliminará todos los fragmentos asociados.`,
     confirmText: 'Sí, eliminar',
     cancelText: 'Cancelar',
     onConfirm: async () => {
@@ -280,6 +378,24 @@ function confirmDeleteBalance(balance: Balance) {
   })
 }
 
+function statusClass(status: string): string {
+  switch (status) {
+    case 'draft': return 'bg-gray-100 text-gray-700'
+    case 'in_progress': return 'bg-blue-100 text-blue-700'
+    case 'completed': return 'bg-green-100 text-green-700'
+    default: return 'bg-gray-100 text-gray-700'
+  }
+}
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case 'draft': return 'Borrador'
+    case 'in_progress': return 'En Progreso'
+    case 'completed': return 'Completado'
+    default: return status
+  }
+}
+
 function formatDate(dateString: string | null): string {
   if (!dateString) return '-'
   try {
@@ -288,8 +404,6 @@ function formatDate(dateString: string | null): string {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     })
   } catch {
     return dateString

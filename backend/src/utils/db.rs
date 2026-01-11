@@ -1,4 +1,6 @@
-use sea_orm::{Database, DatabaseConnection};
+use sea_orm::{DatabaseConnection, SqlxPostgresConnector};
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use std::str::FromStr;
 
 use crate::usuarios::{self, ActiveModel};
 
@@ -6,10 +8,22 @@ pub async fn establish_connection() -> DatabaseConnection {
     dotenvy::dotenv().ok();
     let database_url =
         std::env::var("DATABASE_URL").expect("DATABASE_URL no encontrada en el archivo .env");
+    
     println!("🔗 Conectando a la base de datos...");
-    let db = Database::connect(&database_url)
+    
+    // Configurar conexión SIN prepared statements para PgBouncer
+    let pg_options = PgConnectOptions::from_str(&database_url)
+        .expect("URL de base de datos inválida")
+        .statement_cache_capacity(0);   // Desactivar cache de statements
+    
+    let pool = PgPoolOptions::new()
+        .max_connections(1)            // Una conexión para evitar conflictos
+        .acquire_timeout(std::time::Duration::from_secs(30))
+        .connect_with(pg_options)
         .await
         .expect("Error al conectar a la base de datos");
+
+    let db = SqlxPostgresConnector::from_sqlx_postgres_pool(pool);
 
     println!("✅ Conectado a la base de datos exitosamente");
     db
@@ -232,11 +246,10 @@ pub async fn list_asignaturas(
     }
 }
 
-/// Actualizar asignatura - solo si el usuario es el dueño (subject leader)
+/// Actualizar asignatura - solo Leaders pueden editar
 pub async fn update_asignatura(
     db: &DatabaseConnection,
     asignatura_id: i32,
-    user_id: i32,
     data: &UpdateAsignaturaRequest,
 ) -> Result<(), sea_orm::DbErr> {
     use sea_orm::{ActiveModelTrait, EntityTrait, Set};
@@ -246,13 +259,6 @@ pub async fn update_asignatura(
         .one(db)
         .await?
         .ok_or(sea_orm::DbErr::RecordNotFound("Asignatura no encontrada".to_string()))?;
-
-    // Verificar que el usuario sea el dueño
-    if asignatura.leader_id != user_id {
-        return Err(sea_orm::DbErr::Custom(
-            "No tienes permisos para editar esta asignatura".to_string()
-        ));
-    }
 
     // Actualizar asignatura
     let mut asignatura_active: asignaturas::ActiveModel = asignatura.into();

@@ -29,6 +29,26 @@ export const tiposActividadBalance = [
   { value: 'PP', label: 'PP' },
 ]
 
+// Horas por tipo de actividad
+// Cada clase regular = 2 horas
+// EF (Examen Final) y TE (Trabajo Extraclase) tienen su propio cálculo
+export const HORAS_POR_TIPO: Record<string, number> = {
+  'C': 2,   // Conferencia
+  'CP': 2,  // Clase Práctica
+  'S': 2,   // Seminario
+  'PL': 2,  // Práctica de Laboratorio
+  'T': 2,   // Tutoría
+  'TE': 0,  // Trabajo Extraclase (no cuenta como horas presenciales)
+  'PP': 2,  // Prueba Parcial
+  'EF': 0,  // Examen Final (no cuenta como horas presenciales regulares)
+}
+
+// Tipos de actividad que cuentan como horas de clase
+export const TIPOS_HORAS_CLASE = ['C', 'CP', 'S', 'PL', 'T', 'PP']
+
+// Tipos de exámenes para detección de conflictos
+export const TIPOS_EXAMENES = ['PP']  // Solo pruebas parciales para conflictos semanales
+
 // Roles de usuario (sincronizados con backend jwt.rs)
 export const USER_ROLES = {
   ADMIN: 'admin',

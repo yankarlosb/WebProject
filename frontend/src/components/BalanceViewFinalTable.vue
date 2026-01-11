@@ -12,11 +12,21 @@
             <th class="px-3 py-2 text-left text-xs font-bold text-green-700 uppercase min-w-[140px]">
               Asignatura
             </th>
-            <th colspan="4" class="px-1 py-2 text-center text-xs font-semibold text-green-700 border-l border-gray-300">
-              Consultas
+            <th colspan="4" class="px-2 py-3 text-center font-semibold text-green-700 border-l border-gray-300">
+              <div class="flex flex-col items-center gap-0.5">
+                <span class="text-sm">Consultas</span>
+                <span v-if="finalWeekDates.length > 0" class="text-xs font-medium opacity-80">
+                  {{ finalWeekDates[0]?.displayRange || '' }}
+                </span>
+              </div>
             </th>
-            <th colspan="5" class="px-1 py-2 text-center text-xs font-semibold text-green-700 border-l border-gray-300">
-              Exámenes Finales
+            <th colspan="5" class="px-2 py-3 text-center font-semibold text-green-700 border-l border-gray-300">
+              <div class="flex flex-col items-center gap-0.5">
+                <span class="text-sm">Exámenes Finales</span>
+                <span v-if="finalWeekDates.length > 1" class="text-xs font-medium opacity-80">
+                  {{ finalWeekDates[1]?.displayRange || '' }}
+                </span>
+              </div>
             </th>
           </tr>
         </thead>
@@ -73,7 +83,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { getCellValue } from '../utils/balance-table'
+import { getCellValue, type WeekDateInfo } from '../utils/balance-table'
 
 interface Subject {
   id: string
@@ -84,10 +94,12 @@ interface Subject {
 interface Props {
   subjects: Subject[]
   weeksCount?: number
+  finalWeekDates?: WeekDateInfo[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  weeksCount: 15
+  weeksCount: 15,
+  finalWeekDates: () => []
 })
 
 // Índice de inicio para consultas = semanas * 4 celdas por semana

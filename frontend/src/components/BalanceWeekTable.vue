@@ -29,11 +29,17 @@
               :key="`week-${week}`"
               :colspan="columnsPerWeek"
               :class="[
-                'px-1 py-2 text-center text-xs font-semibold border-l border-gray-300',
+                'px-2 py-3 text-center font-semibold border-l border-gray-300',
                 colorClasses.headerText
               ]"
+              :title="getWeekDateRange(week)"
             >
-              S{{ week }}
+              <div class="flex flex-col items-center gap-0.5">
+                <span class="text-sm">S{{ week }}</span>
+                <span v-if="weekDates.length > 0" class="text-xs font-medium opacity-80">
+                  {{ getWeekDateRange(week) }}
+                </span>
+              </div>
             </th>
             <th v-if="showActions"
                 class="px-3 py-2 text-center text-xs font-bold text-red-700 uppercase border-l border-gray-300">
@@ -91,7 +97,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { tiposActividadBalance } from '../utils/constants'
-import { getCellValue, editableColorClasses, type ColorScheme } from '../utils/balance-table'
+import { getCellValue, editableColorClasses, type ColorScheme, type WeekDateInfo } from '../utils/balance-table'
 
 interface Subject {
   id: string
@@ -108,13 +114,15 @@ interface Props {
   headerIcon?: string
   colorScheme?: ColorScheme
   showActions?: boolean
+  weekDates?: WeekDateInfo[]  // Información de fechas de semanas
 }
 
 const props = withDefaults(defineProps<Props>(), {
   columnsPerWeek: 4,
   headerIcon: '📅',
   colorScheme: 'blue',
-  showActions: false
+  showActions: false,
+  weekDates: () => []
 })
 
 const emit = defineEmits<{
@@ -125,6 +133,13 @@ const emit = defineEmits<{
 // Maneja el cambio en el select
 function handleSelectChange(subjectId: string, cellIndex: number, event: Event) {
   emit('update-value', subjectId, cellIndex, event)
+}
+
+// Obtener fecha de una semana
+function getWeekDateRange(weekNumber: number): string {
+  if (!props.weekDates || props.weekDates.length === 0) return ''
+  const weekInfo = props.weekDates.find(w => w.weekNumber === weekNumber)
+  return weekInfo ? weekInfo.displayRange : ''
 }
 
 // Computed

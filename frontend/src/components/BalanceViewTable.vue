@@ -28,11 +28,17 @@
               :key="`week-${week}`"
               :colspan="columnsPerWeek"
               :class="[
-                'px-1 py-2 text-center text-xs font-semibold border-l border-gray-300',
+                'px-2 py-3 text-center font-semibold border-l border-gray-300',
                 colorClasses.headerText
               ]"
+              :title="getWeekDateRange(week)"
             >
-              S{{ week }}
+              <div class="flex flex-col items-center gap-0.5">
+                <span class="text-sm">S{{ week }}</span>
+                <span v-if="weekDates.length > 0" class="text-xs font-medium opacity-80">
+                  {{ getWeekDateRange(week) }}
+                </span>
+              </div>
             </th>
           </tr>
         </thead>
@@ -69,7 +75,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { getCellValue, viewColorClasses, type ColorScheme } from '../utils/balance-table'
+import { getCellValue, viewColorClasses, type ColorScheme, type WeekDateInfo } from '../utils/balance-table'
 
 interface Subject {
   id: string
@@ -85,12 +91,14 @@ interface Props {
   columnsPerWeek?: number
   headerIcon?: string
   colorScheme?: ColorScheme
+  weekDates?: WeekDateInfo[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   columnsPerWeek: 4,
   headerIcon: '📅',
   colorScheme: 'blue',
+  weekDates: () => []
 })
 
 const totalCells = computed(() => props.weeks.length * props.columnsPerWeek)
@@ -98,4 +106,11 @@ const cellsPerSubject = computed(() => totalCells.value)
 
 // Get all color classes for the current scheme - single reactive dependency
 const colorClasses = computed(() => viewColorClasses[props.colorScheme])
+
+// Obtener fecha de una semana
+function getWeekDateRange(weekNumber: number): string {
+  if (!props.weekDates || props.weekDates.length === 0) return ''
+  const weekInfo = props.weekDates.find(w => w.weekNumber === weekNumber)
+  return weekInfo ? weekInfo.displayRange : ''
+}
 </script>

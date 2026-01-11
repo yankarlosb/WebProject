@@ -1,19 +1,45 @@
 /**
  * Store de Balances
  * Maneja el estado global de los balances de carga docente
- * Sincronizado con el backend via API
+ * 
+ * Nueva arquitectura con fragmentos:
+ * - Leader crea balance, selecciona asignaturas → se crean fragmentos automáticamente
+ * - SubjectLeaders llenan sus fragmentos correspondientes
+ * - Leader puede ver el progreso de todos los fragmentos
  */
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { balancesService, type Balance, type BalanceSubject, type BalanceRequest } from '../services/balances'
+import {
+  balancesService,
+  fragmentsService,
+  type Balance,
+  type BalanceListItem,
+  type Fragment,
+  type PendingFragment,
+  type CreateBalanceRequest,
+  type UpdateBalanceRequest,
+  type UpdateFragmentRequest,
+  type SelectedSubject,
+} from '../services/balances'
 
 // Re-exportar tipos para uso externo
-export type { Balance, BalanceSubject, BalanceRequest }
+export type {
+  Balance,
+  BalanceListItem,
+  Fragment,
+  PendingFragment,
+  CreateBalanceRequest,
+  UpdateBalanceRequest,
+  UpdateFragmentRequest,
+  SelectedSubject,
+}
 
-export interface BalanceCalculation {
-  subjectId: string
-  subjectName: string
+/** Cálculos de un fragmento */
+export interface FragmentCalculation {
+  fragmentId: number
+  asignaturaName: string
+  status: string
   total: number
   C: number
   CP: number
@@ -25,18 +51,56 @@ export interface BalanceCalculation {
   coef: number
 }
 
-// Tipo interno para el balance en edición (puede no tener ID aún)
+/** Período no académico */
+export interface NonAcademicPeriod {
+  start: string
+  end: string
+  name: string
+}
+
+/** Balance en edición (para crear uno nuevo) */
 export interface EditableBalance {
-  id?: number                // undefined si es nuevo
   academic_year: string      // '1ro', '2do', '3ro', '4to'
   period: string             // '1ero', '2do'
   academic_year_text: string // '2025-2026'
   start_date: string         // 'YYYY-MM-DD'
   weeks: number
-  subjects: BalanceSubject[]
+  deadline: string | null
+  allow_leader_edit: boolean
+  selectedAsignaturas: number[] // IDs de asignaturas seleccionadas
+  non_academic_periods: NonAcademicPeriod[] // Períodos no académicos (vacaciones, etc.)
 }
 
-// Module-level constant for valid activity types - avoids recreating Set on each calculation
+/** Fragmento en edición (para SubjectLeader) */
+export interface EditableFragment {
+  fragmentId: number
+  balanceId: number
+  balanceName: string
+  asignaturaId: number
+  asignaturaName: string
+  asignaturaHours: number  // Horas planificadas de la asignatura
+  // Cantidades planificadas por tipo de clase
+  asignaturaPlan: {
+    c: number | null
+    cp: number | null
+    s: number | null
+    pl: number | null
+    te: number | null
+    t: number | null
+    pp: number | null
+    ec: number | null
+    tc: number | null
+    ef: number | null
+  }
+  weeks: number
+  startDate: string  // Fecha de inicio del balance 'YYYY-MM-DD'
+  nonAcademicPeriods: NonAcademicPeriod[] // Períodos no académicos del balance
+  status: 'pending' | 'in_progress' | 'completed'
+  deadline: string | null
+  data: Record<string, unknown>
+}
+
+// Module-level constant for valid activity types
 const VALID_ACTIVITY_TYPES = new Set(['C', 'CP', 'S', 'PL', 'TE', 'T', 'PP'])
 
 export const useBalanceStore = defineStore('balance', () => {
@@ -44,14 +108,23 @@ export const useBalanceStore = defineStore('balance', () => {
   // STATE
   // ============================================================================
   
-  /** Lista de todos los balances del usuario (desde la API) */
-  const balances = ref<Balance[]>([])
+  /** Lista de balances (para Leader: todos, para SubjectLeader: donde tiene fragmentos) */
+  const balances = ref<BalanceListItem[]>([])
   
-  /** Balance actualmente en edición */
-  const currentBalance = ref<EditableBalance | null>(null)
+  /** Balance actual con sus fragmentos (vista detallada) */
+  const currentBalance = ref<Balance | null>(null)
+  
+  /** Balance en edición (para crear nuevo) */
+  const editableBalance = ref<EditableBalance | null>(null)
+  
+  /** Fragmentos pendientes del usuario actual (para Dashboard SubjectLeader) */
+  const pendingFragments = ref<PendingFragment[]>([])
+  
+  /** Fragmento actualmente en edición (SubjectLeader) */
+  const currentFragment = ref<EditableFragment | null>(null)
   
   /** Cálculos del balance actual */
-  const calculations = ref<BalanceCalculation[]>([])
+  const calculations = ref<FragmentCalculation[]>([])
   
   /** Indica si hay cambios sin guardar */
   const isDirty = ref(false)
@@ -67,16 +140,28 @@ export const useBalanceStore = defineStore('balance', () => {
   // ============================================================================
   
   const hasUnsavedChanges = computed(() => isDirty.value)
-  const hasSubjects = computed(() => (currentBalance.value?.subjects.length || 0) > 0)
   const balancesCount = computed(() => balances.value.length)
-  const isNewBalance = computed(() => currentBalance.value?.id === undefined)
+  const pendingCount = computed(() => pendingFragments.value.length)
+  const isCreatingNew = computed(() => editableBalance.value !== null)
+  
+  /** Progreso del balance actual */
+  const currentProgress = computed(() => {
+    if (!currentBalance.value) return null
+    return currentBalance.value.progress
+  })
+  
+  /** Fragmentos con SubjectLeader eliminado (necesitan reasignación) */
+  const orphanedFragments = computed(() => {
+    if (!currentBalance.value) return []
+    return currentBalance.value.fragments.filter(f => f.subject_leader_id === null)
+  })
 
   // ============================================================================
-  // ACTIONS - API
+  // ACTIONS - BALANCES (Leader)
   // ============================================================================
 
   /**
-   * Cargar todos los balances del usuario desde la API
+   * Cargar lista de balances
    */
   async function fetchBalances(): Promise<boolean> {
     isLoading.value = true
@@ -101,7 +186,7 @@ export const useBalanceStore = defineStore('balance', () => {
   }
 
   /**
-   * Cargar un balance específico por ID desde la API
+   * Cargar balance completo con fragmentos
    */
   async function loadBalance(id: number): Promise<boolean> {
     isLoading.value = true
@@ -110,18 +195,8 @@ export const useBalanceStore = defineStore('balance', () => {
     try {
       const response = await balancesService.get(id)
       if (response.success && response.data) {
-        // Convertir Balance de API a EditableBalance
-        currentBalance.value = {
-          id: response.data.id,
-          academic_year: response.data.academic_year,
-          period: response.data.period,
-          academic_year_text: response.data.academic_year_text,
-          start_date: response.data.start_date,
-          weeks: response.data.weeks,
-          subjects: response.data.subjects,
-        }
-        isDirty.value = false
-        calculateAll()
+        currentBalance.value = response.data
+        calculateAllFragments()
         return true
       } else {
         error.value = response.message || 'Balance no encontrado'
@@ -137,59 +212,105 @@ export const useBalanceStore = defineStore('balance', () => {
   }
 
   /**
-   * Guardar el balance actual (crear o actualizar)
+   * Iniciar creación de nuevo balance
    */
-  async function saveBalance(): Promise<{ success: boolean; message: string }> {
-    if (!currentBalance.value) {
-      return { success: false, message: 'No hay balance para guardar' }
+  function startNewBalance() {
+    const today = new Date().toISOString().split('T')[0] || ''
+    
+    editableBalance.value = {
+      academic_year: '1ro',
+      period: '1ero',
+      academic_year_text: '2025-2026',
+      start_date: today,
+      weeks: 15,
+      deadline: null,
+      allow_leader_edit: false,
+      selectedAsignaturas: [],
+      non_academic_periods: [],
+    }
+    isDirty.value = false
+  }
+
+  /**
+   * Actualizar balance editable
+   */
+  function updateEditableBalance(updates: Partial<EditableBalance>) {
+    if (!editableBalance.value) return
+    
+    editableBalance.value = {
+      ...editableBalance.value,
+      ...updates,
+    }
+    isDirty.value = true
+  }
+
+  /**
+   * Agregar/quitar asignatura de selección
+   */
+  function toggleAsignatura(asignaturaId: number) {
+    if (!editableBalance.value) return
+    
+    const idx = editableBalance.value.selectedAsignaturas.indexOf(asignaturaId)
+    if (idx >= 0) {
+      editableBalance.value.selectedAsignaturas.splice(idx, 1)
+    } else {
+      editableBalance.value.selectedAsignaturas.push(asignaturaId)
+    }
+    isDirty.value = true
+  }
+
+  /**
+   * Crear balance con fragmentos (Leader)
+   */
+  async function createBalance(): Promise<{ success: boolean; message: string; balanceId?: number }> {
+    if (!editableBalance.value) {
+      return { success: false, message: 'No hay balance para crear' }
+    }
+
+    if (editableBalance.value.selectedAsignaturas.length === 0) {
+      return { success: false, message: 'Debe seleccionar al menos una asignatura' }
     }
 
     isLoading.value = true
     error.value = null
 
     try {
-      const request: BalanceRequest = {
-        academic_year: currentBalance.value.academic_year,
-        period: currentBalance.value.period,
-        academic_year_text: currentBalance.value.academic_year_text,
-        start_date: currentBalance.value.start_date,
-        weeks: currentBalance.value.weeks,
-        subjects: currentBalance.value.subjects,
+      const request: CreateBalanceRequest = {
+        academic_year: editableBalance.value.academic_year,
+        period: editableBalance.value.period,
+        academic_year_text: editableBalance.value.academic_year_text,
+        start_date: editableBalance.value.start_date,
+        weeks: editableBalance.value.weeks,
+        deadline: editableBalance.value.deadline || undefined,
+        allow_leader_edit: editableBalance.value.allow_leader_edit,
+        asignaturas: editableBalance.value.selectedAsignaturas.map(id => ({ asignatura_id: id })),
+        non_academic_periods: editableBalance.value.non_academic_periods.length > 0 
+          ? editableBalance.value.non_academic_periods 
+          : undefined,
       }
 
-      let response
-      if (currentBalance.value.id !== undefined) {
-        // Actualizar existente
-        response = await balancesService.update(currentBalance.value.id, request)
-      } else {
-        // Crear nuevo
-        response = await balancesService.create(request)
-      }
+      const response = await balancesService.create(request)
 
       if (response.success && response.data) {
-        // Actualizar el balance actual con los datos del servidor
-        currentBalance.value = {
-          id: response.data.id,
-          academic_year: response.data.academic_year,
-          period: response.data.period,
-          academic_year_text: response.data.academic_year_text,
-          start_date: response.data.start_date,
-          weeks: response.data.weeks,
-          subjects: response.data.subjects,
-        }
+        currentBalance.value = response.data
+        editableBalance.value = null
         isDirty.value = false
         
-        // Refrescar la lista de balances
+        // Refrescar lista
         await fetchBalances()
         
-        return { success: true, message: 'Balance guardado exitosamente' }
+        return { 
+          success: true, 
+          message: 'Balance creado exitosamente', 
+          balanceId: response.data.id 
+        }
       } else {
-        error.value = response.message || 'Error al guardar el balance'
+        error.value = response.message || 'Error al crear el balance'
         return { success: false, message: error.value }
       }
     } catch (e) {
-      error.value = 'Error de conexión al guardar'
-      console.error('Error saving balance:', e)
+      error.value = 'Error de conexión al crear'
+      console.error('Error creating balance:', e)
       return { success: false, message: error.value }
     } finally {
       isLoading.value = false
@@ -197,7 +318,38 @@ export const useBalanceStore = defineStore('balance', () => {
   }
 
   /**
-   * Eliminar un balance por ID
+   * Actualizar metadatos de balance (Leader)
+   */
+  async function updateBalance(id: number, updates: UpdateBalanceRequest): Promise<{ success: boolean; message: string }> {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const response = await balancesService.update(id, updates)
+
+      if (response.success) {
+        // Refrescar balance actual si es el mismo
+        if (currentBalance.value?.id === id) {
+          await loadBalance(id)
+        }
+        await fetchBalances()
+        
+        return { success: true, message: 'Balance actualizado exitosamente' }
+      } else {
+        error.value = response.message || 'Error al actualizar'
+        return { success: false, message: error.value }
+      }
+    } catch (e) {
+      error.value = 'Error de conexión al actualizar'
+      console.error('Error updating balance:', e)
+      return { success: false, message: error.value }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Eliminar balance (Leader)
    */
   async function deleteBalance(id: number): Promise<{ success: boolean; message: string }> {
     isLoading.value = true
@@ -205,18 +357,17 @@ export const useBalanceStore = defineStore('balance', () => {
 
     try {
       const response = await balancesService.delete(id)
+      
       if (response.success) {
-        // Remover de la lista local
         balances.value = balances.value.filter(b => b.id !== id)
         
-        // Si es el balance actual, resetear
         if (currentBalance.value?.id === id) {
-          resetBalance()
+          currentBalance.value = null
         }
         
         return { success: true, message: 'Balance eliminado exitosamente' }
       } else {
-        error.value = response.message || 'Error al eliminar el balance'
+        error.value = response.message || 'Error al eliminar'
         return { success: false, message: error.value }
       }
     } catch (e) {
@@ -229,118 +380,188 @@ export const useBalanceStore = defineStore('balance', () => {
   }
 
   // ============================================================================
-  // ACTIONS - LOCALES (edición en memoria)
+  // ACTIONS - FRAGMENTS (SubjectLeader)
   // ============================================================================
 
   /**
-   * Crear un nuevo balance vacío (en memoria, no guardado aún)
+   * Cargar fragmentos pendientes (para Dashboard)
    */
-  function createNewBalance(
-    academicYear: string = '1ro',
-    period: string = '1ero',
-    weeks: number = 15
-  ) {
-    const today = new Date().toISOString().split('T')[0] || ''
-    
-    currentBalance.value = {
-      // No tiene ID porque aún no está guardado
-      academic_year: academicYear,
-      period: period,
-      academic_year_text: '2025-2026',
-      start_date: today,
-      weeks: weeks,
-      subjects: [],
-    }
-    calculations.value = []
-    isDirty.value = false
-  }
+  async function fetchPendingFragments(): Promise<boolean> {
+    isLoading.value = true
+    error.value = null
 
-  /**
-   * Agregar una asignatura al balance actual
-   */
-  function addSubject(subjectName: string) {
-    if (!currentBalance.value) return
-
-    // Calcular número de celdas basado en semanas
-    const weeks = currentBalance.value.weeks || 15
-    const cellsCount = weeks * 4 + 9 // semanas * 4 días + consultas(4) + exámenes(5)
-
-    const newSubject: BalanceSubject = {
-      id: Date.now().toString(),
-      name: subjectName,
-      values: Array(cellsCount).fill(''),
-    }
-
-    currentBalance.value.subjects.push(newSubject)
-    isDirty.value = true
-  }
-
-  /**
-   * Eliminar una asignatura del balance actual
-   * Optimized: uses filter for cleaner immutable update
-   */
-  function removeSubject(subjectId: string) {
-    if (!currentBalance.value) return
-
-    const originalLength = currentBalance.value.subjects.length
-    currentBalance.value.subjects = currentBalance.value.subjects.filter(s => s.id !== subjectId)
-    
-    // Only mark as dirty if something was actually removed
-    if (currentBalance.value.subjects.length < originalLength) {
-      isDirty.value = true
-    }
-  }
-
-  /**
-   * Actualizar un valor en la tabla del balance
-   */
-  function updateSubjectValue(subjectId: string, cellIndex: number, value: string) {
-    if (!currentBalance.value) return
-
-    const subject = currentBalance.value.subjects.find(s => s.id === subjectId)
-    if (subject && cellIndex >= 0 && cellIndex < subject.values.length) {
-      subject.values[cellIndex] = value
-      isDirty.value = true
-    }
-  }
-
-  /**
-   * Actualizar metadatos del balance
-   */
-  function updateBalanceMetadata(updates: Partial<Omit<EditableBalance, 'id' | 'subjects'>>) {
-    if (!currentBalance.value) return
-
-    currentBalance.value = {
-      ...currentBalance.value,
-      ...updates,
-    }
-    isDirty.value = true
-  }
-
-  /**
-   * Calcular totales y coeficientes para cada asignatura
-   * Optimized: uses module-level Set constant for faster lookups
-   */
-  function calculateAll() {
-    if (!currentBalance.value) return
-
-    calculations.value = currentBalance.value.subjects.map(subject => {
-      // Initialize counts with explicit type
-      const counts = {
-        C: 0,
-        CP: 0,
-        S: 0,
-        PL: 0,
-        TE: 0,
-        T: 0,
-        PP: 0,
+    try {
+      const response = await fragmentsService.getPending()
+      if (response.success && response.data) {
+        pendingFragments.value = response.data
+        return true
+      } else {
+        error.value = response.message || 'Error al cargar fragmentos pendientes'
+        return false
       }
+    } catch (e) {
+      error.value = 'Error de conexión'
+      console.error('Error fetching pending fragments:', e)
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Cargar fragmento para edición (SubjectLeader)
+   */
+  async function loadFragment(balanceId: number, asignaturaId: number): Promise<boolean> {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      // Primero obtener el balance para tener el contexto
+      const balanceResponse = await balancesService.get(balanceId)
+      if (!balanceResponse.success || !balanceResponse.data) {
+        error.value = 'Balance no encontrado'
+        return false
+      }
+
+      const fragmentResponse = await fragmentsService.get(balanceId, asignaturaId)
+      if (fragmentResponse.success && fragmentResponse.data) {
+        const fragment = fragmentResponse.data
+        const balance = balanceResponse.data
+        const asig = fragment.asignatura
+        
+        currentFragment.value = {
+          fragmentId: fragment.id,
+          balanceId: balance.id,
+          balanceName: balance.name,
+          asignaturaId: fragment.asignatura_id,
+          asignaturaName: asig?.name || 'Asignatura',
+          asignaturaHours: asig?.hours || 0,
+          asignaturaPlan: {
+            c: asig?.c ?? null,
+            cp: asig?.cp ?? null,
+            s: asig?.s ?? null,
+            pl: asig?.pl ?? null,
+            te: asig?.te ?? null,
+            t: asig?.t ?? null,
+            pp: asig?.pp ?? null,
+            ec: asig?.ec ?? null,
+            tc: asig?.tc ?? null,
+            ef: asig?.ef ?? null,
+          },
+          weeks: balance.weeks,
+          startDate: balance.start_date,
+          nonAcademicPeriods: balance.non_academic_periods || [],
+          status: fragment.status,
+          deadline: balance.deadline,
+          data: fragment.data || {},
+        }
+        isDirty.value = false
+        return true
+      } else {
+        error.value = fragmentResponse.message || 'Fragmento no encontrado'
+        return false
+      }
+    } catch (e) {
+      error.value = 'Error de conexión al cargar fragmento'
+      console.error('Error loading fragment:', e)
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Actualizar datos del fragmento en memoria
+   */
+  function updateFragmentData(data: Record<string, unknown>) {
+    if (!currentFragment.value) return
+    
+    currentFragment.value.data = {
+      ...currentFragment.value.data,
+      ...data,
+    }
+    isDirty.value = true
+  }
+
+  /**
+   * Actualizar valor específico en la tabla del fragmento
+   */
+  function updateFragmentCell(cellIndex: number, value: string) {
+    if (!currentFragment.value) return
+    
+    const values = (currentFragment.value.data.values as string[]) || []
+    values[cellIndex] = value
+    currentFragment.value.data = {
+      ...currentFragment.value.data,
+      values,
+    }
+    isDirty.value = true
+  }
+
+  /**
+   * Guardar fragmento (SubjectLeader)
+   */
+  async function saveFragment(markAsCompleted: boolean = false): Promise<{ success: boolean; message: string }> {
+    if (!currentFragment.value) {
+      return { success: false, message: 'No hay fragmento para guardar' }
+    }
+
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const request: UpdateFragmentRequest = {
+        data: currentFragment.value.data,
+        status: markAsCompleted ? 'completed' : 'in_progress',
+      }
+
+      const response = await fragmentsService.update(
+        currentFragment.value.balanceId,
+        currentFragment.value.asignaturaId,
+        request
+      )
+
+      if (response.success) {
+        currentFragment.value.status = request.status || 'in_progress'
+        isDirty.value = false
+        
+        // Refrescar pendientes
+        await fetchPendingFragments()
+        
+        return { 
+          success: true, 
+          message: markAsCompleted ? 'Fragmento completado' : 'Fragmento guardado' 
+        }
+      } else {
+        error.value = response.message || 'Error al guardar'
+        return { success: false, message: error.value }
+      }
+    } catch (e) {
+      error.value = 'Error de conexión al guardar'
+      console.error('Error saving fragment:', e)
+      return { success: false, message: error.value }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // ============================================================================
+  // ACTIONS - CÁLCULOS
+  // ============================================================================
+
+  /**
+   * Calcular totales de todos los fragmentos del balance actual
+   */
+  function calculateAllFragments() {
+    if (!currentBalance.value) return
+
+    calculations.value = currentBalance.value.fragments.map(fragment => {
+      const values = (fragment.data?.values as string[]) || []
       
+      const counts = { C: 0, CP: 0, S: 0, PL: 0, TE: 0, T: 0, PP: 0 }
       let total = 0
       
-      // Single pass through values with optimized type checking
-      // Uses module-level VALID_ACTIVITY_TYPES constant for O(1) lookup
-      for (const val of subject.values) {
+      for (const val of values) {
         if (typeof val === 'string' && VALID_ACTIVITY_TYPES.has(val)) {
           counts[val as keyof typeof counts]++
           total++
@@ -348,35 +569,45 @@ export const useBalanceStore = defineStore('balance', () => {
       }
       
       return {
-        subjectId: subject.id,
-        subjectName: subject.name,
+        fragmentId: fragment.id,
+        asignaturaName: fragment.asignatura?.name || 'Asignatura',
+        status: fragment.status,
         total,
-        C: counts.C,
-        CP: counts.CP,
-        S: counts.S,
-        PL: counts.PL,
-        TE: counts.TE,
-        T: counts.T,
-        PP: counts.PP,
-        coef: Math.round(total * 1.2 * 100) / 100, // Faster than parseFloat/toFixed
+        ...counts,
+        coef: Math.round(total * 1.2 * 100) / 100,
       }
     })
   }
 
+  // ============================================================================
+  // ACTIONS - UTILIDADES
+  // ============================================================================
+
   /**
-   * Reiniciar el balance actual (sin eliminar de la DB)
+   * Reiniciar estado
    */
-  function resetBalance() {
+  function resetState() {
     currentBalance.value = null
+    editableBalance.value = null
+    currentFragment.value = null
     calculations.value = []
     isDirty.value = false
     error.value = null
   }
 
   /**
-   * Marcar como sin cambios
+   * Cancelar creación de balance
    */
-  function markAsSaved() {
+  function cancelNewBalance() {
+    editableBalance.value = null
+    isDirty.value = false
+  }
+
+  /**
+   * Cerrar fragmento actual
+   */
+  function closeFragment() {
+    currentFragment.value = null
     isDirty.value = false
   }
 
@@ -391,6 +622,9 @@ export const useBalanceStore = defineStore('balance', () => {
     // State
     balances,
     currentBalance,
+    editableBalance,
+    pendingFragments,
+    currentFragment,
     calculations,
     isDirty,
     isLoading,
@@ -398,25 +632,36 @@ export const useBalanceStore = defineStore('balance', () => {
 
     // Getters
     hasUnsavedChanges,
-    hasSubjects,
     balancesCount,
-    isNewBalance,
+    pendingCount,
+    isCreatingNew,
+    currentProgress,
+    orphanedFragments,
 
-    // Actions - API
+    // Actions - Balances
     fetchBalances,
     loadBalance,
-    saveBalance,
+    startNewBalance,
+    updateEditableBalance,
+    toggleAsignatura,
+    createBalance,
+    updateBalance,
     deleteBalance,
 
-    // Actions - Locales
-    createNewBalance,
-    addSubject,
-    removeSubject,
-    updateSubjectValue,
-    updateBalanceMetadata,
-    calculateAll,
-    resetBalance,
-    markAsSaved,
+    // Actions - Fragments
+    fetchPendingFragments,
+    loadFragment,
+    updateFragmentData,
+    updateFragmentCell,
+    saveFragment,
+
+    // Actions - Cálculos
+    calculateAllFragments,
+
+    // Actions - Utilidades
+    resetState,
+    cancelNewBalance,
+    closeFragment,
     clearError,
   }
 })

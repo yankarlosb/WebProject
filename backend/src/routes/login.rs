@@ -69,8 +69,10 @@ pub async fn login_json(
             }
             return Json(LoginResponse::error("Credenciales inválidas".to_string()));
         }
-        Err(_) => {
-            return Json(LoginResponse::error("Error del servidor".to_string()));
+        Err(e) => {
+            eprintln!("❌ Error en consulta de login: {:?}", e);
+            // En caso de error de BD, tratar como credenciales inválidas para no exponer detalles
+            return Json(LoginResponse::error("Credenciales inválidas".to_string()));
         }
     };
 
@@ -121,6 +123,10 @@ pub async fn login_json(
             let mut cookie = Cookie::new("jwt_token", token.clone());
             cookie.set_http_only(true);
             cookie.set_same_site(SameSite::Lax);
+            // Solo secure en producción (HTTPS), en desarrollo (HTTP) debe ser false
+            #[cfg(debug_assertions)]
+            cookie.set_secure(false);
+            #[cfg(not(debug_assertions))]
             cookie.set_secure(true);
             cookie.set_path("/");
             cookie.set_max_age(Duration::seconds(10800));

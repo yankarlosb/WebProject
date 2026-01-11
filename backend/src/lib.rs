@@ -57,7 +57,10 @@ use routes::balance::{
     get_balance,
     create_balance,
     update_balance,
-    delete_balance
+    delete_balance,
+    get_pending_fragments,
+    get_fragment,
+    update_fragment
 };
 
 use routes::audit::{
@@ -105,6 +108,10 @@ pub async fn run() -> Rocket<Build> {
             create_balance,
             update_balance,
             delete_balance,
+            // Rutas de fragmentos
+            get_pending_fragments,
+            get_fragment,
+            update_fragment,
             // Rutas de auditoría
             list_audit_logs,
             list_security_logs,

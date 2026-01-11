@@ -60,6 +60,10 @@ CREATE TABLE IF NOT EXISTS balances (
     start_date DATE NOT NULL,
     weeks INTEGER NOT NULL DEFAULT 15,     -- Número de semanas (variable)
     subjects JSONB NOT NULL DEFAULT '[]',  -- Array de asignaturas con valores
+    status TEXT NOT NULL DEFAULT 'draft',  -- 'draft', 'in_progress', 'completed'
+    deadline DATE DEFAULT NULL,            -- Fecha límite para SubjectLeaders
+    allow_leader_edit BOOLEAN NOT NULL DEFAULT false,
+    non_academic_periods JSONB NOT NULL DEFAULT '[]', -- Períodos de vacaciones [{"start":"YYYY-MM-DD","end":"YYYY-MM-DD","name":"..."}]
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

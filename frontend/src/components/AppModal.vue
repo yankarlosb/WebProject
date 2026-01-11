@@ -87,7 +87,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   size: 'md',
-  hideClose: false,
+  hideClose: true, // Por defecto ocultar el botón X, usar solo el botón Cancelar del footer
   closeOnOverlay: true,
   closeOnEscape: true,
 })
@@ -122,7 +122,7 @@ function handleOverlayClick() {
 function handleEscape(event: KeyboardEvent) {
   if (props.closeOnEscape && event.key === 'Escape' && props.modelValue) {
     close()
-  }2026
+  }
 }
 
 // Control de scroll del body cuando el modal está abierto

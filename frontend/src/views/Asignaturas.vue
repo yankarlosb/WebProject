@@ -110,9 +110,9 @@
             
             <!-- Menú de acciones -->
             <div class="flex gap-1">
-              <!-- Botón Editar: Solo SubjectLeaders si es su asignatura -->
+              <!-- Botón Editar: Solo Leaders pueden editar -->
               <button
-                v-if="authStore.isSubjectLeader && asignatura.leader_id === currentUserId"
+                v-if="authStore.isLeader"
                 @click="openEditModal(asignatura)"
                 class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
                 title="Editar"
@@ -251,7 +251,7 @@
         </div>
       </form>
 
-      <!-- Formulario de EDICIÓN (SubjectLeaders) - Todos los campos -->
+      <!-- Formulario de EDICIÓN (Leaders) - Todos los campos -->
       <form v-else @submit.prevent="handleSave" class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Nombre -->
@@ -394,7 +394,7 @@ interface CreateForm {
   leader_user_name: string
 }
 
-// Formulario para EDITAR (SubjectLeaders) - todos los datos
+// Formulario para EDITAR (Leaders) - todos los datos
 interface EditForm extends Omit<UpdateAsignaturaData, 'hours'> {
   hours: number
 }
@@ -450,10 +450,6 @@ const asignaturasFiltradas = computed(() => {
     return asignaturasStore.asignaturasList
   }
   return asignaturasStore.asignaturasByPeriodo(filtroSeleccionado.value)
-})
-
-const currentUserId = computed(() => {
-  return authStore.user?.id || 0
 })
 
 // Cargar datos iniciales
@@ -565,7 +561,7 @@ async function handleSave() {
 
   try {
     if (isEditing.value && editingId.value) {
-      // Actualizar (SubjectLeader)
+      // Actualizar (Leader)
       const result = await asignaturasStore.updateAsignatura(editingId.value, editForm.value)
       if (result.success) {
         uiStore.showSuccess('Asignatura actualizada correctamente')

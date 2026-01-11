@@ -1,4 +1,4 @@
-use crate::utils::jwt::{AdminUser, AuthenticatedUser, LeaderUser, SubjectLeaderUser, LeaderOrSubjectLeaderUser};
+use crate::utils::jwt::{AdminUser, AuthenticatedUser, LeaderUser, LeaderOrSubjectLeaderUser};
 use crate::utils::validation::{validate_new_user, validate_profile, validate_subject, is_valid_password};
 use crate::utils::audit;
 use crate::database::audit_logs::{AuditCategory, EntityType, EventType};
@@ -280,29 +280,29 @@ pub struct UpdateAsignaturaRequest {
     pub weeks: Option<i32>,
 }
 
-/// Actualizar asignatura - Solo SubjectLeaders (para sus asignaturas)
+/// Actualizar asignatura - Solo Leaders
+/// Los Leaders son responsables de llenar los datos de las asignaturas
 #[put("/asignaturas/update/<asignatura_id>", format = "json", data = "<asignatura_data>")]
 pub async fn update_asignatura(
     asignatura_id: i32,
     asignatura_data: Json<UpdateAsignaturaRequest>,
     db: &State<AppState>,
-    user: SubjectLeaderUser,
+    leader: LeaderUser,
     remote_addr: Option<SocketAddr>,
 ) -> Json<ApiResponse> {
-    let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
+    let leader_id = leader.0.sub.parse::<i32>().unwrap_or(0);
     let ip_str = remote_addr.map(|a| a.ip().to_string()).unwrap_or_else(|| "unknown".to_string());
     let asignatura_name = asignatura_data.name.clone();
 
-    // Verificar que el SubjectLeader sea el dueño de la asignatura
-    match utils::db::update_asignatura(&db.db, asignatura_id, user_id, &asignatura_data.into_inner()).await {
+    match utils::db::update_asignatura(&db.db, asignatura_id, &asignatura_data.into_inner()).await {
         Ok(_) => {
             // Registrar en auditoría
             let _ = audit::AuditLogBuilder::new(
                 EventType::Update,
                 AuditCategory::Functional,
-                format!("SubjectLeader '{}' actualizó la asignatura '{}'", user.0.user_name, asignatura_name),
+                format!("Leader '{}' actualizó la asignatura '{}'", leader.0.user_name, asignatura_name),
             )
-            .user(user_id, &user.0.user_name)
+            .user(leader_id, &leader.0.user_name)
             .entity(EntityType::Subject, asignatura_id)
             .ip(&ip_str)
             .save(&db.db)
