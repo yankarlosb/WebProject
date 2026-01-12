@@ -66,7 +66,7 @@ export type UserRole = typeof USER_ROLES[keyof typeof USER_ROLES]
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
   [USER_ROLES.ADMIN]: 'Administrador',
   [USER_ROLES.USER]: 'Usuario',
-  [USER_ROLES.LEADER]: 'Líder',
+  [USER_ROLES.LEADER]: 'Jefe de Carrera',
   [USER_ROLES.SUBJECT_LEADER]: 'Jefe de Asignatura',
 }
 
