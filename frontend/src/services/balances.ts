@@ -199,6 +199,55 @@ export const balancesService = {
   async delete(id: number): Promise<ServiceResponse<void>> {
     return httpDelete(`/api/balances/${id}`, 'Error al eliminar el balance')
   },
+
+  /**
+   * Exportar balance a Excel
+   * Descarga un archivo .xlsx con el balance formateado
+   */
+  async exportToExcel(id: number): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await fetch(`/api/balances/${id}/export`, {
+        method: 'GET',
+        credentials: 'include', // Include cookies for auth
+      })
+
+      if (!response.ok) {
+        // Try to parse error message from JSON response
+        try {
+          const error = await response.json()
+          return { success: false, message: error.message || 'Error al exportar' }
+        } catch {
+          return { success: false, message: `Error HTTP: ${response.status}` }
+        }
+      }
+
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let filename = 'balance_export.xlsx'
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/)
+        if (match && match[1]) {
+          filename = match[1]
+        }
+      }
+
+      // Create blob and trigger download
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+
+      return { success: true }
+    } catch (error) {
+      console.error('Error exporting balance:', error)
+      return { success: false, message: 'Error de conexión al exportar' }
+    }
+  },
 }
 
 // ============================================================================

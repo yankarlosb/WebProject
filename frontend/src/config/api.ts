@@ -10,16 +10,21 @@ export const API_CONFIG = {
   // En desarrollo usa el proxy de Vite, en producción usa la misma URL
   BASE_URL: isDevelopment ? '' : '',
   ENDPOINTS: {
+    // Auth
     LOGIN: '/api/login',
     LOGOUT: '/api/logout',
     VERIFY: '/api/verify',
-    BALANCE: '/api/balance',
+    // Users (Admin)
+    USERS: '/api/users',
+    SUBJECT_LEADERS: '/api/users/subject-leaders',
+    // Profile
+    PROFILE: '/api/profile',
+    PROFILE_PASSWORD: '/api/profile/password',
+    // Asignaturas
     ASIGNATURAS: '/api/asignaturas',
-    USUARIOS: '/api/usuarios',
-    MODIFICAR: '/api/modify_user',
-    ELIMINAR: '/api/delete_user',
-    LISTAR: '/api/list_users',
-    CREAR: '/api/create_user',
+    // Balances
+    BALANCES: '/api/balances',
+    FRAGMENTS: '/api/fragments',
   }
 };
 

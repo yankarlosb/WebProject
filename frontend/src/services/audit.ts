@@ -1,6 +1,6 @@
 // Servicio de auditoría para el frontend
 
-import { httpGet, type ServiceResponse } from './http'
+import { httpGet, httpPost, type ServiceResponse } from './http'
 
 // Tipos para logs de auditoría
 export interface AuditLog {
@@ -24,6 +24,10 @@ export interface AuditStats {
   recent_errors: number
 }
 
+export interface CleanupResponse {
+  deleted_count: number
+}
+
 // Mapeo de tipos de eventos a iconos/colores para el frontend
 export const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
   LOGIN: { label: 'Inicio de sesión', color: 'text-green-600', bgColor: 'bg-green-500' },
@@ -34,6 +38,8 @@ export const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string; b
   DELETE: { label: 'Eliminación', color: 'text-red-600', bgColor: 'bg-red-500' },
   ERROR: { label: 'Error', color: 'text-red-600', bgColor: 'bg-red-500' },
   ACCESS_DENIED: { label: 'Acceso denegado', color: 'text-orange-600', bgColor: 'bg-orange-500' },
+  SETTINGS_UPDATED: { label: 'Config. actualizada', color: 'text-purple-600', bgColor: 'bg-purple-500' },
+  EXPORT: { label: 'Exportación', color: 'text-teal-600', bgColor: 'bg-teal-500' },
 }
 
 export const CATEGORY_CONFIG: Record<string, { label: string; color: string }> = {
@@ -102,4 +108,11 @@ export function getCategoryConfig(category: string) {
     label: category, 
     color: 'text-gray-600' 
   }
+}
+
+/**
+ * Ejecuta la limpieza de logs antiguos según la configuración de retención
+ */
+export async function cleanupOldLogs(): Promise<ServiceResponse<CleanupResponse>> {
+  return httpPost<CleanupResponse>('/api/audit/cleanup', {}, 'Error al limpiar logs antiguos')
 }

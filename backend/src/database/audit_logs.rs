@@ -66,6 +66,8 @@ pub enum EventType {
     Delete,
     Error,
     AccessDenied,
+    SettingsUpdated,
+    Export,
 }
 
 impl EventType {
@@ -79,6 +81,8 @@ impl EventType {
             EventType::Delete => "DELETE",
             EventType::Error => "ERROR",
             EventType::AccessDenied => "ACCESS_DENIED",
+            EventType::SettingsUpdated => "SETTINGS_UPDATED",
+            EventType::Export => "EXPORT",
         }
     }
 }
@@ -107,6 +111,7 @@ pub enum EntityType {
     Balance,
     Session,
     Fragment,
+    Settings,
 }
 
 impl EntityType {
@@ -117,6 +122,7 @@ impl EntityType {
             EntityType::Balance => "BALANCE",
             EntityType::Session => "SESSION",
             EntityType::Fragment => "FRAGMENT",
+            EntityType::Settings => "SETTINGS",
         }
     }
 }

@@ -11,10 +11,10 @@ export const tiposActividad = [
   { id: 'cp', label: 'CP' },
   { id: 's', label: 'S' },
   { id: 'pl', label: 'PL' },
-  { id: 't', label: 'T' },
   { id: 'te', label: 'TE' },
+  { id: 't', label: 'T' },
   { id: 'pp', label: 'PP' },
-  { id: 'ef', label: 'EF' },
+  { id: 'ec', label: 'EC' },
 ]
 
 // Tipos de actividad para el balance de carga (selectores en la tabla)
@@ -24,29 +24,33 @@ export const tiposActividadBalance = [
   { value: 'CP', label: 'CP' },
   { value: 'S', label: 'S' },
   { value: 'PL', label: 'PL' },
-  { value: 'T', label: 'T' },
   { value: 'TE', label: 'TE' },
+  { value: 'T', label: 'T' },
   { value: 'PP', label: 'PP' },
+  { value: 'EC', label: 'EC' },
 ]
+
+// Tipos críticos (se colorean en rojo y no puede haber 3+ en la misma semana)
+// T - Taller, TE - Tarea Extraclase, PP - Prueba Parcial
+export const TIPOS_CRITICOS = ['T', 'TE', 'PP']
 
 // Horas por tipo de actividad
 // Cada clase regular = 2 horas
-// EF (Examen Final) y TE (Trabajo Extraclase) tienen su propio cálculo
 export const HORAS_POR_TIPO: Record<string, number> = {
   'C': 2,   // Conferencia
   'CP': 2,  // Clase Práctica
   'S': 2,   // Seminario
   'PL': 2,  // Práctica de Laboratorio
-  'T': 2,   // Tutoría
-  'TE': 0,  // Trabajo Extraclase (no cuenta como horas presenciales)
+  'TE': 0,  // Tarea Extraclase (no cuenta como horas presenciales)
+  'T': 2,   // Taller
   'PP': 2,  // Prueba Parcial
-  'EF': 0,  // Examen Final (no cuenta como horas presenciales regulares)
+  'EC': 2,  // Examen Comprobatorio
 }
 
 // Tipos de actividad que cuentan como horas de clase
-export const TIPOS_HORAS_CLASE = ['C', 'CP', 'S', 'PL', 'T', 'PP']
+export const TIPOS_HORAS_CLASE = ['C', 'CP', 'S', 'PL', 'T', 'PP', 'EC']
 
-// Tipos de exámenes para detección de conflictos
+// Tipos de exámenes para detección de conflictos (deprecated - usar TIPOS_CRITICOS)
 export const TIPOS_EXAMENES = ['PP']  // Solo pruebas parciales para conflictos semanales
 
 // Roles de usuario (sincronizados con backend jwt.rs)

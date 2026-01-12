@@ -6,7 +6,21 @@
 //! - Consultar trazas de auditoría
 
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set};
+use std::sync::atomic::{AtomicBool, Ordering};
 use crate::database::audit_logs::{self, ActiveModel, AuditCategory, EntityType, EventType};
+
+/// Flag global para controlar si se registran IPs en los logs
+pub static AUDIT_LOG_IP: AtomicBool = AtomicBool::new(true);
+
+/// Actualiza la configuración de logging de IP
+pub fn set_audit_log_ip(enabled: bool) {
+    AUDIT_LOG_IP.store(enabled, Ordering::SeqCst);
+}
+
+/// Obtiene el estado actual del logging de IP
+pub fn get_audit_log_ip() -> bool {
+    AUDIT_LOG_IP.load(Ordering::SeqCst)
+}
 
 /// Estructura para crear un nuevo registro de auditoría
 pub struct AuditLogBuilder {
@@ -76,6 +90,13 @@ impl AuditLogBuilder {
 
     /// Guarda el registro de auditoría en la base de datos
     pub async fn save(self, db: &DatabaseConnection) -> Result<audit_logs::Model, sea_orm::DbErr> {
+        // Respetar la configuración de audit_log_ip
+        let ip_address = if get_audit_log_ip() {
+            self.ip_address
+        } else {
+            None
+        };
+        
         let log = ActiveModel {
             user_id: Set(self.user_id),
             user_name: Set(self.user_name),
@@ -84,7 +105,7 @@ impl AuditLogBuilder {
             entity_type: Set(self.entity_type.map(|e| e.as_str().to_string())),
             entity_id: Set(self.entity_id),
             description: Set(self.description),
-            ip_address: Set(self.ip_address),
+            ip_address: Set(ip_address),
             user_agent: Set(self.user_agent),
             success: Set(self.success),
             error_message: Set(self.error_message),
@@ -421,4 +442,22 @@ pub async fn get_security_logs(
     limit: u64,
 ) -> Result<Vec<audit_logs::Model>, sea_orm::DbErr> {
     get_logs_by_category(db, AuditCategory::Security, limit).await
+}
+
+/// Elimina logs de auditoría más antiguos que el número de días especificado
+/// Retorna el número de logs eliminados
+pub async fn cleanup_old_logs(
+    db: &DatabaseConnection,
+    retention_days: i32,
+) -> Result<u64, sea_orm::DbErr> {
+    use chrono::{Duration, Utc};
+    
+    let cutoff_date = Utc::now() - Duration::days(retention_days as i64);
+    
+    let result = audit_logs::Entity::delete_many()
+        .filter(audit_logs::Column::CreatedAt.lt(cutoff_date.naive_utc()))
+        .exec(db)
+        .await?;
+    
+    Ok(result.rows_affected)
 }

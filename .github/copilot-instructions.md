@@ -1,313 +1,167 @@
-# Copilot Instructions: Balance de Carga Docente# Copilot Instructions: Balance de Carga Docente
+# Copilot Instructions: Balance de Carga Docente
 
+Sistema web para gestión de carga docente en Facultad de Ciberseguridad - Rust Rocket + Vue 3 + PostgreSQL monorepo.
 
+## Architecture Overview
 
-Sistema web para gestión de carga docente en Facultad de Ciberseguridad - Rust Rocket + Vue 3 + PostgreSQL monorepo.Sistema web para gestión de carga docente en Facultad de Ciberseguridad - Rust Rocket + Vue 3 + PostgreSQL monorepo.
+**Stack**: Rust backend (Rocket 0.5.1 + SeaORM 1.1.17) + Vue 3/TypeScript frontend + PostgreSQL
+- Backend: Port 8000, serves API (`/api/*`) and static files in production
+- Frontend: Port 5173 (dev), Vite proxies `/api/*` to backend
+- Auth: HttpOnly JWT cookies with IP validation (3h expiration)
+- State: Pinia stores (`auth`, `balance`, `asignaturas`, `users`, `ui`)
 
+**Data Flow**: Pinia store → Service (`services/*.ts`) → HTTP helper (`services/http.ts`) → Backend route (`routes/*.rs`) → Business logic (`utils/db.rs`) → SeaORM → PostgreSQL
 
+## Database Schema (5 Tables)
 
-## Architecture Overview## Architecture Overview
+**Schema Source**: `backend/schema.sql` — **Migrations**: `backend/migrations/*.sql` (apply via psql)
 
+| Table | Purpose |
+|-------|---------|
+| `usuarios` | User accounts with bcrypt tokens. Login uses `user_name`, display uses `name` |
+| `asignaturas` | Subjects with hourly distribution (C, CP, S, PL, TE, T, PP, EC, TC, EF). `leader_id` is UNIQUE FK |
+| `balances` | Balance metadata (academic_year, period, weeks, status, deadline, non_academic_periods JSONB) |
+| `balance_fragments` | Per-asignatura data within a balance. Links to `asignatura_id` and `subject_leader_id` |
+| `audit_logs` | Security/functional auditing (event_type, category, entity_type, success, ip_address) |
 
+**SeaORM Entities**: Auto-generated in `backend/src/database/`. Regenerate after schema changes:
+```fish
+cd backend && sea-orm-cli generate entity -o src/database --with-serde both
+```
 
-**Stack**: Rust backend (Rocket 0.5.1 + SeaORM 1.1.17) + Vue 3/TypeScript frontend + PostgreSQL**Stack**: Rust backend (Rocket 0.5.1 + SeaORM 1.1.17) + Vue 3/TypeScript frontend + PostgreSQL
+## API Design Conventions (CRITICAL)
 
-- Backend: Port 8000, serves API (`/api/*`) and static files in production- Backend: Port 8000, serves API (`/api/*`) and static files in production
+### RESTful Routes Pattern
+All routes MUST follow RESTful conventions:
+```
+GET    /api/{resource}           # List all
+POST   /api/{resource}           # Create new
+GET    /api/{resource}/<id>      # Get one
+PUT    /api/{resource}/<id>      # Update one
+DELETE /api/{resource}/<id>      # Delete one
+```
 
-- Frontend: Port 5173 (dev), Vite proxies `/api/*` to backend- Frontend: Port 5173 (dev), Vite proxies `/api/*` to backend
+### Current API Endpoints
+| Resource | Endpoints |
+|----------|-----------|
+| Auth | `POST /api/login`, `POST /api/logout`, `GET /api/verify` |
+| Users | `GET /api/users`, `POST /api/users`, `PUT /api/users/<id>`, `DELETE /api/users/<id>` |
+| Profile | `PUT /api/profile`, `PUT /api/profile/password` |
+| Asignaturas | `GET /api/asignaturas`, `POST /api/asignaturas`, `PUT /api/asignaturas/<id>`, `DELETE /api/asignaturas/<id>` |
+| Balances | `GET /api/balances`, `POST /api/balances`, `GET /api/balances/<id>`, `PUT /api/balances/<id>`, `DELETE /api/balances/<id>` |
+| Fragments | `GET /api/fragments/pending`, `GET /api/balances/<id>/fragments/<asig_id>`, `PUT /api/balances/<id>/fragments/<asig_id>` |
 
-- Auth: HttpOnly JWT cookies with IP validation (3h expiration)- Auth: HttpOnly JWT cookies with IP validation (3h expiration)
+### Response Types (`types.rs`)
+- `ApiResponse`: `{ message, alert: "success"|"error" }`
+- `ApiResponseWithData<T>`: Adds `data: Option<T>`
 
-- State: Pinia stores (`auth`, `balance`, `asignaturas`, `users`)- State: Pinia stores (`auth`, `balance`, `asignaturas`, `users`)
+## Frontend Service Patterns (CRITICAL)
 
+### Standard Service Pattern
+All services MUST use object literal pattern with `ServiceResponse<T>`:
+```typescript
+// services/example.ts
+import { httpGet, httpPost, httpPut, httpDelete, type ServiceResponse } from './http'
 
+export const exampleService = {
+  async list(): Promise<ServiceResponse<Item[]>> {
+    return httpGet<Item[]>('/api/items', 'Error al obtener items')
+  },
+  async create(data: CreateData): Promise<ServiceResponse<void>> {
+    return httpPost('/api/items', data, 'Error al crear item')
+  },
+  async update(id: number, data: UpdateData): Promise<ServiceResponse<void>> {
+    return httpPut(`/api/items/${id}`, data, 'Error al actualizar item')
+  },
+  async delete(id: number): Promise<ServiceResponse<void>> {
+    return httpDelete(`/api/items/${id}`, 'Error al eliminar item')
+  },
+}
+export default exampleService
+```
 
-**Data Flow Pattern**: Frontend Pinia store → Service layer (`services/*.ts`) → HTTP helpers (`services/http.ts`) → Backend API (`routes/*.rs`) → Business logic (`utils/db.rs`) → SeaORM → PostgreSQL**Data Flow Pattern**: Frontend Pinia store → Service layer (`services/*.ts`) → Backend API (`routes/*.rs`) → Business logic (`utils/db.rs`) → SeaORM → PostgreSQL
-
-
-
-## Database Schema**Critical Design Decision**: Balance calculations stored **client-side only** (localStorage). `backend/src/database/balance.rs` entity exists but balances are NOT persisted to DB - only `asignaturas` and `usuarios` tables are active. Balance data uses 79-cell grid (15 weeks × 4 days + consultation week + exams).
-
-
-
-**4 Tables** (`backend/schema.sql`):## Database Schema
-
-- `usuarios`: User accounts with bcrypt tokens. Fields: `id`, `user_name`, `name`, `email`, `token`, `role`, `created_at`
-
-- `asignaturas`: Subjects with hourly distribution (C, CP, S, PL, TE, T, PP, EC, TC, EF). **Critical**: `leader_id` is UNIQUE FK to `usuarios.id` (one subject leader per subject)**3 Tables** (`backend/schema.sql`):
-
-- `balances`: User balance documents with JSONB `subjects` column storing grid data. Each balance belongs to one user (`user_id` FK)- `usuarios`: User accounts with bcrypt tokens. Fields: `id`, `user_name`, `name`, `email`, `token`, `role`, `created_at`
-
-- `schema_migrations`: Version tracking for incremental migrations- `asignaturas`: Subjects with hourly distribution (C, CP, S, PL, TE, T, PP, EC, TC, EF, weeks columns). **Critical**: `leader_id` is UNIQUE FK to `usuarios.id` (one subject leader per subject)
-
-- `schema_migrations`: Version tracking (migrations directory mentioned but not implemented)
-
-**Migrations**: SQL files in `backend/migrations/`. Apply manually via psql or Supabase SQL Editor.
-
-**SeaORM Entities**: Auto-generated in `backend/src/database/`, **never edit manually**. Regenerate after schema changes:
-
-**SeaORM Entities**: Auto-generated in `backend/src/database/`, **never edit manually**. Regenerate after schema changes:```fish
-
-```fishcd backend && sea-orm-cli generate entity -o src/database --with-serde both
-
-cd backend && sea-orm-cli generate entity -o src/database --with-serde both```
-
+### Store Pattern
+Stores use consistent action naming (`fetch*`, `create*`, `update*`, `delete*`):
+```typescript
+async function fetchItems() {
+  isLoading.value = true
+  error.value = null
+  try {
+    const response = await itemsService.list()
+    if (response.success && response.data) {
+      items.value = response.data
+      return { success: true }
+    }
+    error.value = response.message || 'Error'
+    return { success: false, message: error.value }
+  } catch (err) {
+    error.value = 'Error de conexión'
+    return { success: false, message: error.value }
+  } finally {
+    isLoading.value = false
+  }
+}
 ```
 
 ## Authentication System
 
-## Authentication System
+**JWT Flow** (IP-bound):
+1. `POST /api/login` → JWT in HttpOnly cookie (`jwt_token`)
+2. Request guards validate: `AuthenticatedUser`, `AdminUser`, `LeaderUser`, `SubjectLeaderUser`, `LeaderOrSubjectLeaderUser`
+3. Frontend calls `authStore.checkAuth()` → `/api/verify` → user data in memory (NOT localStorage)
 
-**JWT Flow** (IP-bound tokens):
+**Role Hierarchy**: `admin` > `leader` > `subjectLeader` > `user`
+- Guards use `impl_role_guard!` macro in `utils/jwt.rs`
 
-**JWT Flow** (IP-bound tokens):1. `POST /api/login` validates credentials → generates JWT with user IP → sets HttpOnly cookie (`jwt_token`)
+## Balance System Architecture
 
-1. `POST /api/login` validates credentials → generates JWT with user IP → sets HttpOnly cookie (`jwt_token`)2. All protected routes use request guards: `AuthenticatedUser`, `AdminUser`, `LeaderUser`, `SubjectLeaderUser`, `LeaderOrSubjectLeaderUser` (defined in `utils/jwt.rs`)
+**Leader/SubjectLeader Workflow**:
+1. **Leader** creates balance → selects asignaturas → fragments auto-created (one per asignatura)
+2. **SubjectLeader** fills their assigned fragment (weekly distribution grid)
+3. **Leader** views progress across all fragments, can set `deadline` and `allow_leader_edit`
 
-2. All protected routes use request guards: `AuthenticatedUser`, `AdminUser`, `LeaderUser`, `SubjectLeaderUser`, `LeaderOrSubjectLeaderUser` (defined in `utils/jwt.rs`)3. Frontend auth store calls `checkAuth()` → hits `/api/verify` → populates user data in memory (NOT localStorage)
-
-3. Frontend auth store calls `checkAuth()` → hits `/api/verify` → populates user data in memory (NOT localStorage)4. Cookie holds real auth state - frontend never reads/writes `jwt_token` directly
-
-4. Cookie holds real auth state - frontend never reads/writes `jwt_token` directly
-
-**Role Hierarchy**: `admin` → `leader` → `subjectLeader` → `user`
-
-**Role Hierarchy**: `admin` → `leader` → `subjectLeader` → `user`- Admin: User CRUD via `/api/create_user`, `/api/delete_user/<id>`, `/api/modify_user/<id>`, `/api/list_users`
-
-- Admin: User CRUD via `/api/create_user`, `/api/delete_user/<id>`, `/api/modify_user/<id>`, `/api/list_users`- Leader: Subject CRUD via `/api/asignaturas/*`, assigns `subjectLeader` users to subjects
-
-- Leader: Subject CRUD via `/api/asignaturas/*`, assigns `subjectLeader` users to subjects- SubjectLeader: Can only edit their own assigned subject via `/api/asignaturas/update/<id>`
-
-- SubjectLeader: Can only edit their own assigned subject via `/api/asignaturas/update/<id>`- Guards use macro `impl_role_guard!` for DRY role checking
-
-- Guards use macro `impl_role_guard!` for DRY role checking
-
-**Security Notes**:
-
-**Security Notes**:- JWT secret from `.env` `JWT_SECRET` (required, loaded via `once_cell::sync::Lazy`)
-
-- JWT secret from `.env` `JWT_SECRET` (required, loaded via `once_cell::sync::Lazy`)- Cookie flags: `http_only=true`, `same_site=Lax`, `secure=true`, `max_age=3h` (10800s)
-
-- Cookie flags: `http_only=true`, `same_site=Lax`, `secure=true`, `max_age=3h` (10800s)- IP validation in `decode_jwt()` compares `claims.ip` with `request.remote()` address
-
-- IP validation in `decode_jwt()` compares `claims.ip` with `request.remote()` address- Passwords hashed with bcrypt (`DEFAULT_COST` = 12)
-
-- Passwords hashed with bcrypt (`DEFAULT_COST` = 12)
-
-## Frontend Patterns
-
-## Frontend Patterns
-
-**Router Guard Logic** (`router/index.ts`):
-
-**Router Guard Logic** (`router/index.ts`):1. Check route `meta.requiresAuth`, `meta.requiresAdmin`, `meta.requiresLeader`, `meta.requiresLeaderOrSubjectLeader`
-
-1. Check route `meta.requiresAuth`, `meta.requiresAdmin`, `meta.requiresLeader`, `meta.requiresLeaderOrSubjectLeader`2. Call `authStore.checkAuth()` → hits `/api/verify` to validate JWT
-
-2. Call `authStore.checkAuth()` → hits `/api/verify` to validate JWT3. Role checks via computed getters: `isAdmin`, `isLeader`, `isSubjectLeader`
-
-3. Role checks via computed getters: `isAdmin`, `isLeader`, `isSubjectLeader`4. On 401 or invalid: Clear store via `clearAuth()`, redirect to `/login`
-
-4. On 401 or invalid: Clear store via `clearAuth()`, redirect to `/login`
-
-**State Management** (Pinia stores):
-
-**State Management** (Pinia stores):- `auth.ts`: User session in memory only (no localStorage), `checkAuth()`, `logout()`, role getters
-
-- `auth.ts`: User session in memory only (no localStorage), `checkAuth()`, `logout()`, role getters- `balance.ts`: Client-side balance CRUD in localStorage (keys: `balance_<id>`, `recentBalances`)
-
-- `balance.ts`: Balance CRUD via API (`services/balances.ts`), syncs with backend `balances` table- `asignaturas.ts`: Mirrors backend `/api/asignaturas/list`
-
-- `asignaturas.ts`: Mirrors backend `/api/asignaturas/list`- `users.ts`: Admin user management, mirrors backend `/api/list_users`
-
-- `users.ts`: Admin user management, mirrors backend `/api/list_users`
-
-**Component Naming**: 
-
-**Component Naming**: - Base components: `App*` prefix (`AppButton`, `AppModal`, `AppInput`, `AppCard`)
-
-- Base components: `App*` prefix (`AppButton`, `AppModal`, `AppInput`, `AppCard`)- Feature components: Domain-specific (`BalanceWeekTable`, `StatsCard`, `BalanceConfigCard`)
-
-- Feature components: Domain-specific (`BalanceWeekTable`, `StatsCard`, `BalanceConfigCard`)
-
-**TypeScript Types**: Defined in `services/*.ts` (e.g., `AuthResponse`, `User` in `auth.ts`)
-
-**TypeScript Types**: 
-
-- Core types in `types/*.ts` (e.g., `User` in `types/user.ts`)**Constants** (`utils/constants.ts`): Centralized roles, labels, and options synced with backend
-
-- Service-specific types in `services/*.ts` (e.g., `Balance`, `BalanceSubject` in `services/balances.ts`)
+**Fragment Status Flow**: `pending` → `in_progress` → `completed`
 
 ## Development Workflows
 
-**Constants** (`utils/constants.ts`): Centralized roles, labels, and options synced with backend
-
 **Setup** (one-time):
-
-## Development Workflows```fish
-
-# Root .env file (NOT in backend/)
-
-**Setup** (one-time):echo 'DATABASE_URL=postgres://user:pass@localhost/balance_carga' > .env
-
-```fishecho 'JWT_SECRET=your-32-char-minimum-secret-key' >> .env
-
-# Root .env file (NOT in backend/)
-
-echo 'DATABASE_URL=postgres://user:pass@localhost/balance_carga' > .env# Create DB and apply schema
-
-echo 'JWT_SECRET=your-32-char-minimum-secret-key' >> .envcreatedb balance_carga
-
-psql -U postgres -d balance_carga -f backend/schema.sql
-
-# Create DB and apply schema```
+```fish
+# Root .env file (NOT backend/.env)
+echo 'DATABASE_URL=postgres://user:pass@localhost/balance_carga' > .env
+echo 'JWT_SECRET=your-32-char-minimum-secret-key' >> .env
 
 createdb balance_carga
+psql -U postgres -d balance_carga -f backend/schema.sql
+```
 
-psql -U postgres -d balance_carga -f backend/schema.sql**Daily Dev** (2 terminals):
-
-``````fish
-
-# Terminal 1: Backend
-
-**Daily Dev** (2 terminals):cd backend && cargo run
-
+**Daily Dev** (2 terminals):
 ```fish
-
-# Terminal 1: Backend# Terminal 2: Frontend
-
-cd backend && cargo runcd frontend && npm run dev
-
+cd backend && cargo run      # Terminal 1
+cd frontend && npm run dev   # Terminal 2
 ```
 
-# Terminal 2: Frontend
+## Common Mistakes
 
-cd frontend && npm run dev**Production Build**:
+1. **`.env` Location**: Project root, NOT `backend/.env`
+2. **Entity Editing**: Never edit `database/*.rs` — regenerate with sea-orm-cli
+3. **Cookie Handling**: Frontend NEVER reads `jwt_token` cookie — backend manages via `CookieJar`
+4. **Column Names**: `user_name` for login, `name` for display (easy typo)
+5. **Fish Shell**: Use `echo`/`printf`, NOT bash heredocs
+6. **Service Pattern**: Always use object literal + `ServiceResponse<T>`, NOT class with static methods
+7. **HTTP Verbs**: Use proper verbs (GET/POST/PUT/DELETE), NOT `POST` for everything
+8. **Route Naming**: RESTful `/resource/<id>`, NOT `/action_resource/<id>`
 
-``````fish
+## Key Files Reference
 
-cd frontend && npm run build              # → frontend/dist/
-
-**Production Build**:cd ../backend && cargo build --release    # Serves dist/ when cfg!(not(debug_assertions))
-
-```fish```
-
-cd frontend && npm run build              # → frontend/dist/
-
-cd ../backend && cargo build --release    # Serves dist/ when cfg!(not(debug_assertions))**Add Test User** (generate bcrypt hash first):
-
-``````fish
-
-# Generate hash using bcrypt online tool or Rust code, then:
-
-**Add Test User** (generate bcrypt hash first):psql -d balance_carga -c "INSERT INTO usuarios (user_name, name, email, token, role) VALUES ('admin', 'Admin User', 'admin@test.com', '\$2b\$12\$<hash>', 'admin');"
-
-```fish```
-
-# Generate hash using bcrypt online tool or Rust code, then:
-
-psql -d balance_carga -c "INSERT INTO usuarios (user_name, name, email, token, role) VALUES ('admin', 'Admin User', 'admin@test.com', '\$2b\$12\$<hash>', 'admin');"## API Conventions
-
-```
-
-**Response Types** (`types.rs`):
-
-## API Conventions- `ApiResponse`: `{ message: String, alert: "success"|"error" }`
-
-- `ApiResponseWithData<T>`: Adds `data: Option<T>` field
-
-**Response Types** (`types.rs`):
-
-- `ApiResponse`: `{ message: String, alert: "success"|"error" }`**Route Mounting** (`lib.rs`):
-
-- `ApiResponseWithData<T>`: Adds `data: Option<T>` field- All API routes under `/api` prefix via `rocket::mount("/api", routes![...])`
-
-- Static files from `../frontend/src` (debug) or `../frontend/dist` (release)
-
-**Route Mounting** (`lib.rs`):- Catch unauthorized: `#[catch(401)]` catcher returns HTML alert + redirect to login
-
-- All API routes under `/api` prefix via `rocket::mount("/api", routes![...])`
-
-- Static files from `../frontend/src` (debug) or `../frontend/dist` (release)**CORS Config** (`utils/cors.rs`): 
-
-- Unauthorized catcher redirects to login- Dev: Allows `http://localhost:5173` with credentials
-
-- **Action Required**: Update `Access-Control-Allow-Origin` for production domain
-
-**CORS Config** (`utils/cors.rs`): 
-
-- Dev: Allows `http://localhost:5173` with credentials## Common Mistakes
-
-- **Action Required**: Update `Access-Control-Allow-Origin` for production domain
-
-1. **`.env` Location**: Must be in project root (sibling to `backend/` and `frontend/`), NOT `backend/.env`
-
-## Common Mistakes2. **Balance Persistence**: Balances are localStorage-only - don't expect DB queries to return them
-
-3. **Entity Editing**: Regenerate entities after schema changes, don't modify `database/*.rs` files
-
-1. **`.env` Location**: Must be in project root (sibling to `backend/` and `frontend/`), NOT `backend/.env`4. **Cookie Confusion**: Frontend NEVER reads/writes `jwt_token` cookie - only backend manages it via `CookieJar`
-
-2. **Entity Editing**: Regenerate entities after schema changes, don't modify `database/*.rs` files5. **Fish Shell Syntax**: Use `echo` or `printf`, NOT bash heredocs (`<<EOF`)
-
-3. **Cookie Confusion**: Frontend NEVER reads/writes `jwt_token` cookie - only backend manages it via `CookieJar`6. **User Table Column**: Uses `user_name` for login username, `name` for display name (easy typo)
-
-4. **Fish Shell Syntax**: Use `echo` or `printf`, NOT bash heredocs (`<<EOF`)
-
-5. **User Table Column**: Uses `user_name` for login username, `name` for display name (easy typo)## Key Files Reference
-
-6. **Validation**: Backend uses `utils/validation.rs` for input sanitization - always validate before DB ops
-
-- **Backend Entry**: `backend/src/main.rs` → `lib.rs` (Rocket config)
-
-## Key Files Reference- **Auth Implementation**: `backend/src/utils/jwt.rs` (guards + claims)
-
-- **Business Logic**: `backend/src/utils/db.rs` (all DB operations)
-
-- **Backend Entry**: `backend/src/main.rs` → `lib.rs` (Rocket config)- **Schema Source**: `backend/schema.sql` (single source of truth)
-
-- **Auth Implementation**: `backend/src/utils/jwt.rs` (guards + claims)- **Frontend Router**: `frontend/src/router/index.ts` (auth guard logic)
-
-- **Business Logic**: `backend/src/utils/db.rs` (all DB operations)- **Auth Service**: `frontend/src/services/auth.ts` (login/logout/verify)
-
-- **Schema Source**: `backend/schema.sql` (single source of truth)- **Vite Proxy**: `frontend/vite.config.ts` (`/api` → `localhost:8000`)
-
-- **Frontend Router**: `frontend/src/router/index.ts` (auth guard logic)
-
-- **Auth Service**: `frontend/src/services/auth.ts` (login/logout/verify)## Domain Logic
-
-- **HTTP Helpers**: `frontend/src/services/http.ts` (standardized API calls)
-
-- **Vite Proxy**: `frontend/vite.config.ts` (`/api` → `localhost:8000`)**Balance Calculation** (frontend-only):
-
-- 79-cell grid per subject: 15 weeks × 4 days + consultation week + exams
-
-## Domain Logic- Coefficient formula: `total * 1.2` (see `stores/balance.ts` `calculateAll()`)
-
-- Distribution types: C (Conference), CP (Practical Conference), S (Seminar), PL (Lab Practice), TE (Thesis), T (Tutorial), PP (Pre-Professional), EC/TC (Exam Committees), EF (Final Exam)
-
-**Balance Calculation**:
-
-- Variable weeks (default 15), stored per-balance in DB**Subject Hours**: Integer columns per activity type (`asignaturas` table), total stored in `hours` column
-
-- Coefficient formula: `total * 1.2` (see `stores/balance.ts` `calculateAll()`)
-
-- Distribution types: C (Conference), CP (Practical Conference), S (Seminar), PL (Lab Practice), TE (Thesis), T (Tutorial), PP (Pre-Professional), EC/TC (Exam Committees), EF (Final Exam)## Profile Management
-
-- Balance name auto-generated: `"{academic_year} Año - Período {period} ({academic_year_text})"`
-
-**User Profile Update**: 
-
-**Subject Hours**: Integer columns per activity type (`asignaturas` table), total stored in `hours` column- Any authenticated user can update their own profile via `POST /api/update_profile` (name, email)
-
-- Password change via `POST /api/change_password` (new_password)
-
-## Profile Management- Both endpoints use `AuthenticatedUser` guard, extract user ID from JWT claims
-
-- See `routes/manager.rs` for implementation details
-
-**User Profile Update**: 
-- Any authenticated user can update their own profile via `POST /api/update_profile` (name, email)
-- Password change via `POST /api/change_password` (new_password)
-- Both endpoints use `AuthenticatedUser` guard, extract user ID from JWT claims
-- See `routes/manager.rs` for implementation details
+| Purpose | File |
+|---------|------|
+| Backend entry | `backend/src/main.rs` → `lib.rs` |
+| Auth guards | `backend/src/utils/jwt.rs` |
+| DB operations | `backend/src/utils/db.rs` |
+| Balance routes | `backend/src/routes/balance.rs` |
+| User/Asignatura routes | `backend/src/routes/manager.rs` |
+| Audit logging | `backend/src/utils/audit.rs` |
+| Frontend router | `frontend/src/router/index.ts` |
+| HTTP helpers | `frontend/src/services/http.ts` |
+| Balance store | `frontend/src/stores/balance.ts` |
+| API config | `frontend/src/config/api.ts` |

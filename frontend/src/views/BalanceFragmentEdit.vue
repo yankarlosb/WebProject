@@ -372,6 +372,7 @@ const tiposResumen: { key: keyof typeof calculations; label: string }[] = [
   { key: 'TE', label: 'TE' },
   { key: 'T', label: 'T' },
   { key: 'PP', label: 'PP' },
+  { key: 'EC', label: 'EC' },
 ]
 
 // Cálculos reactivos
@@ -383,6 +384,7 @@ const calculations = reactive({
   TE: 0,
   T: 0,
   PP: 0,
+  EC: 0,
   total: 0,
   coef: 0,
 })
@@ -590,10 +592,11 @@ function recalculate() {
   calculations.TE = 0
   calculations.T = 0
   calculations.PP = 0
+  calculations.EC = 0
   calculations.total = 0
   
   // Contar
-  const validKeys = ['C', 'CP', 'S', 'PL', 'TE', 'T', 'PP'] as const
+  const validKeys = ['C', 'CP', 'S', 'PL', 'TE', 'T', 'PP', 'EC'] as const
   for (const val of values) {
     if (val && typeof val === 'string' && validKeys.includes(val as typeof validKeys[number])) {
       calculations[val as typeof validKeys[number]]++

@@ -101,7 +101,8 @@ export interface EditableFragment {
 }
 
 // Module-level constant for valid activity types
-const VALID_ACTIVITY_TYPES = new Set(['C', 'CP', 'S', 'PL', 'TE', 'T', 'PP'])
+// C, CP, S, PL, TE, T, PP, EC
+const VALID_ACTIVITY_TYPES = new Set(['C', 'CP', 'S', 'PL', 'TE', 'T', 'PP', 'EC'])
 
 export const useBalanceStore = defineStore('balance', () => {
   // ============================================================================
@@ -558,7 +559,7 @@ export const useBalanceStore = defineStore('balance', () => {
     calculations.value = currentBalance.value.fragments.map(fragment => {
       const values = (fragment.data?.values as string[]) || []
       
-      const counts = { C: 0, CP: 0, S: 0, PL: 0, TE: 0, T: 0, PP: 0 }
+      const counts = { C: 0, CP: 0, S: 0, PL: 0, TE: 0, T: 0, PP: 0, EC: 0 }
       let total = 0
       
       for (const val of values) {

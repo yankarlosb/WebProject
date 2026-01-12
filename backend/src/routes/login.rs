@@ -1,6 +1,7 @@
-use crate::utils::jwt::{AuthenticatedUser, Claims, LoginResponse, UserInfo, create_jwt};
+use crate::utils::jwt::{AuthenticatedUser, Claims, LoginResponse, UserInfo, create_jwt, DEFAULT_TOKEN_EXPIRATION_HOURS, set_ip_validation};
 use crate::utils::validation::is_valid_username;
 use crate::utils::audit;
+use crate::routes::settings::{load_rate_limiter_config, get_setting_u64, get_setting_bool};
 use crate::*;
 use rocket::http::{Cookie, CookieJar, SameSite};
 use rocket::time::Duration;
@@ -27,6 +28,17 @@ pub async fn login_json(
 
     // Obtener IP del cliente
     let client_ip = remote_addr.map(|addr| addr.ip());
+    
+    // Debug: mostrar IP recibida
+    println!("🔍 Login attempt - IP: {:?}, Username: {}", client_ip, username);
+    
+    // Cargar configuración del rate limiter desde la BD y actualizar
+    let rate_config = load_rate_limiter_config(&db.db).await;
+    db.rate_limiter.update_config(rate_config);
+    
+    // Cargar configuración de validación de IP
+    let require_ip = get_setting_bool(&db.db, "require_ip_validation", true).await;
+    set_ip_validation(require_ip);
     
     // Verificar si la IP está bloqueada por rate limiting (single lock acquisition)
     if let Some(ip) = client_ip {
@@ -82,6 +94,9 @@ pub async fn login_json(
         // Registrar intento fallido
         if let Some(ip) = client_ip {
             let blocked = db.rate_limiter.record_failed_attempt(ip);
+            let remaining = db.rate_limiter.get_remaining_attempts(ip);
+            println!("❌ Failed login - IP: {}, Blocked: {}, Remaining: {}", ip, blocked, remaining);
+            
             // Registrar en auditoría
             let _ = audit::log_login_failed(&db.db, username, &ip.to_string(), "Contraseña incorrecta").await;
             if blocked {
@@ -89,12 +104,13 @@ pub async fn login_json(
                     "Demasiados intentos fallidos. Cuenta bloqueada temporalmente.".to_string()
                 ));
             }
-            let remaining = db.rate_limiter.get_remaining_attempts(ip);
-            if remaining <= 2 {
+            if remaining <= 3 {
                 return Json(LoginResponse::error(
-                    format!("Credenciales inválidas. {} intentos restantes.", remaining)
+                    format!("Credenciales inválidas. Te quedan {} intentos disponibles.", remaining)
                 ));
             }
+        } else {
+            println!("⚠️ Failed login - No IP available!");
         }
         return Json(LoginResponse::error("Credenciales inválidas".to_string()));
     }
@@ -106,6 +122,9 @@ pub async fn login_json(
         db.rate_limiter.maybe_cleanup();
     }
 
+    // Cargar configuración de expiración del token desde la BD
+    let token_expiration_hours = get_setting_u64(&db.db, "token_expiration_hours", DEFAULT_TOKEN_EXPIRATION_HOURS).await;
+
     // Crear los claims del JWT con toda la información del usuario
     let claims = Claims::new(
         entity.id,
@@ -114,6 +133,7 @@ pub async fn login_json(
         entity.email.clone(),
         entity.role.clone().unwrap_or_default(),
         remote_addr,
+        token_expiration_hours,
     );
 
     // Generar el token
@@ -129,7 +149,8 @@ pub async fn login_json(
             #[cfg(not(debug_assertions))]
             cookie.set_secure(true);
             cookie.set_path("/");
-            cookie.set_max_age(Duration::seconds(10800));
+            // Usar la misma expiración que el token
+            cookie.set_max_age(Duration::hours(token_expiration_hours as i64));
             cookies.add(cookie);
 
             // Registrar login exitoso en auditoría

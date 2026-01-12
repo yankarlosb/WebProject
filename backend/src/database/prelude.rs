@@ -4,4 +4,6 @@ pub use super::asignaturas::Entity as Asignaturas;
 pub use super::audit_logs::Entity as AuditLogs;
 pub use super::balance_fragments::Entity as BalanceFragments;
 pub use super::balances::Entity as Balances;
+pub use super::schema_migrations::Entity as SchemaMigrations;
+pub use super::system_settings::Entity as SystemSettings;
 pub use super::usuarios::Entity as Usuarios;

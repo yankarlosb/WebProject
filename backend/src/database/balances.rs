@@ -21,14 +21,14 @@ pub struct Model {
     pub weeks: i32,
     #[sea_orm(column_type = "JsonBinary")]
     pub subjects: Json,
-    pub created_at: Option<DateTime>,
-    pub updated_at: Option<DateTime>,
     #[sea_orm(column_type = "Text")]
     pub status: String,
     pub deadline: Option<Date>,
     pub allow_leader_edit: bool,
     #[sea_orm(column_type = "JsonBinary")]
     pub non_academic_periods: Json,
+    pub created_at: Option<DateTime>,
+    pub updated_at: Option<DateTime>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

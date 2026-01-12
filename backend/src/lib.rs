@@ -60,13 +60,21 @@ use routes::balance::{
     delete_balance,
     get_pending_fragments,
     get_fragment,
-    update_fragment
+    update_fragment,
+    export_balance_excel
 };
 
 use routes::audit::{
     list_audit_logs,
     list_security_logs,
-    get_audit_stats
+    get_audit_stats,
+    cleanup_audit_logs
+};
+
+use routes::settings::{
+    list_settings,
+    update_settings,
+    get_public_settings
 };
 
 pub struct AppState {
@@ -77,6 +85,16 @@ pub struct AppState {
 pub async fn run() -> Rocket<Build> {
     let db = utils::db::establish_connection().await;
     let rate_limiter = RateLimiter::new();
+    
+    // Cargar configuraciones iniciales desde la base de datos
+    let password_policy = routes::settings::load_password_policy(&db).await;
+    utils::validation::set_password_policy(password_policy);
+    
+    let ip_validation = routes::settings::load_ip_validation_setting(&db).await;
+    utils::jwt::set_ip_validation(ip_validation);
+    
+    let audit_log_ip = routes::settings::load_audit_log_ip_setting(&db).await;
+    utils::audit::set_audit_log_ip(audit_log_ip);
     
     let frontend_path = if cfg!(debug_assertions) {
         "../frontend/src"
@@ -108,6 +126,7 @@ pub async fn run() -> Rocket<Build> {
             create_balance,
             update_balance,
             delete_balance,
+            export_balance_excel,
             // Rutas de fragmentos
             get_pending_fragments,
             get_fragment,
@@ -116,6 +135,11 @@ pub async fn run() -> Rocket<Build> {
             list_audit_logs,
             list_security_logs,
             get_audit_stats,
+            cleanup_audit_logs,
+            // Rutas de configuración
+            list_settings,
+            update_settings,
+            get_public_settings,
         ])
         .register("/", catchers![unauthorized, forbidden])
         .mount("/", FileServer::from(frontend_path))

@@ -6,4 +6,6 @@ pub mod asignaturas;
 pub mod audit_logs;
 pub mod balance_fragments;
 pub mod balances;
+pub mod schema_migrations;
+pub mod system_settings;
 pub mod usuarios;

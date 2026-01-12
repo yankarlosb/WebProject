@@ -155,7 +155,7 @@
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useUIStore } from '../stores/ui'
-import ProfileService from '../services/profile'
+import { profileService } from '../services/profile'
 import AppLayout from '../components/AppLayout.vue'
 import AppCard from '../components/AppCard.vue'
 import AppInput from '../components/AppInput.vue'
@@ -248,7 +248,7 @@ async function handleSaveProfile() {
 
   try {
     // Actualizar perfil en el backend
-    const result = await ProfileService.updateProfile({
+    const result = await profileService.update({
       name: trimmedName,
       email: trimmedEmail,
     })
@@ -300,7 +300,7 @@ async function handleChangePassword() {
 
   try {
     // Cambiar contraseña en el backend
-    const result = await ProfileService.changePassword(trimmedPassword)
+    const result = await profileService.changePassword(trimmedPassword)
     
     if (result.success) {
       uiStore.showSuccess('Contraseña cambiada correctamente')

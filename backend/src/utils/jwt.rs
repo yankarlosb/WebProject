@@ -4,6 +4,7 @@ use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome, Request};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicBool, Ordering};
 use once_cell::sync::Lazy;
 use std::net::SocketAddr;
 
@@ -11,6 +12,19 @@ use std::net::SocketAddr;
 static JWT_SECRET: Lazy<String> = Lazy::new(|| {
     std::env::var("JWT_SECRET").unwrap()
 });
+
+// Configuración global de validación de IP (actualizable en runtime)
+pub static REQUIRE_IP_VALIDATION: AtomicBool = AtomicBool::new(true);
+
+/// Actualiza la configuración de validación de IP
+pub fn set_ip_validation(require: bool) {
+    REQUIRE_IP_VALIDATION.store(require, Ordering::Relaxed);
+}
+
+/// Obtiene si la validación de IP está habilitada
+pub fn get_ip_validation() -> bool {
+    REQUIRE_IP_VALIDATION.load(Ordering::Relaxed)
+}
 
 // Estructura de los claims del JWT
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -25,6 +39,9 @@ pub struct Claims {
     pub iat: usize,        // Issued at (timestamp)
 }
 
+/// Default token expiration in hours
+pub const DEFAULT_TOKEN_EXPIRATION_HOURS: u64 = 3;
+
 impl Claims {
     pub fn new(
         user_id: i32, 
@@ -32,7 +49,8 @@ impl Claims {
         name: String,
         email: String,
         role: String, 
-        remote_addr: Option<SocketAddr>
+        remote_addr: Option<SocketAddr>,
+        expiration_hours: u64,
     ) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -43,6 +61,8 @@ impl Claims {
             .map(|addr| addr.ip().to_string())
             .unwrap_or_else(|| "unknown".to_string());
 
+        let expiration_secs = expiration_hours * 3600;
+
         Claims {
             sub: user_id.to_string(),
             user_name,
@@ -51,7 +71,7 @@ impl Claims {
             role,
             ip: client_ip,
             iat: now,
-            exp: now + 10800, // 3 horas = 10800 segundos
+            exp: now + expiration_secs as usize,
         }
     }
 }
@@ -75,12 +95,17 @@ pub fn decode_jwt(token: &str, remote_addr: Option<SocketAddr>) -> Result<Claims
         &validation,
     )?;
 
-    if token_data.claims.ip != remote_addr
-        .map(|addr| addr.ip().to_string())
-        .unwrap_or_else(|| "unknown".to_string()) {
-        return Err(jsonwebtoken::errors::Error::from(
-            jsonwebtoken::errors::ErrorKind::InvalidToken,
-        ));
+    // Solo validar IP si está habilitado en la configuración
+    if get_ip_validation() {
+        let client_ip = remote_addr
+            .map(|addr| addr.ip().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+        
+        if token_data.claims.ip != client_ip {
+            return Err(jsonwebtoken::errors::Error::from(
+                jsonwebtoken::errors::ErrorKind::InvalidToken,
+            ));
+        }
     }
 
     Ok(token_data.claims)

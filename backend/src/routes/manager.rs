@@ -18,7 +18,8 @@ pub struct NewUser {
     pub role: String,
 }
 
-#[post("/create_user", format = "json", data = "<new_user>")]
+/// POST /users - Create a new user (Admin only)
+#[post("/users", format = "json", data = "<new_user>")]
 pub async fn create_user(
     new_user: Json<NewUser>,
     db: &State<AppState>,
@@ -50,7 +51,8 @@ pub async fn create_user(
     }
 }
 
-#[post("/delete_user/<user_id>")]
+/// DELETE /users/<id> - Delete a user (Admin only)
+#[delete("/users/<user_id>")]
 pub async fn delete_user(
     user_id: i32,
     db: &State<AppState>,
@@ -76,7 +78,8 @@ pub async fn delete_user(
     }
 }
 
-#[get("/list_users")]
+/// GET /users - List all users (Admin only)
+#[get("/users")]
 pub async fn list_users(
     db: &State<AppState>,
     _admin: AdminUser,
@@ -87,7 +90,8 @@ pub async fn list_users(
     }
 }
 
-#[post("/modify_user/<user_id>", format = "json", data = "<user_data>")]
+/// PUT /users/<id> - Update a user (Admin only)
+#[put("/users/<user_id>", format = "json", data = "<user_data>")]
 pub async fn modify_user(
     user_id: i32,
     user_data: Json<usuarios::Model>,
@@ -116,7 +120,8 @@ pub struct UpdateProfileRequest {
     pub email: String,
 }
 
-#[post("/update_profile", format = "json", data = "<profile_data>")]
+/// PUT /profile - Update current user's profile
+#[put("/profile", format = "json", data = "<profile_data>")]
 pub async fn update_profile(
     profile_data: Json<UpdateProfileRequest>,
     db: &State<AppState>,
@@ -159,7 +164,8 @@ pub struct ChangePasswordRequest {
     pub new_password: String,
 }
 
-#[post("/change_password", format = "json", data = "<password_data>")]
+/// PUT /profile/password - Change current user's password
+#[put("/profile/password", format = "json", data = "<password_data>")]
 pub async fn change_password(
     password_data: Json<ChangePasswordRequest>,
     db: &State<AppState>,
@@ -206,9 +212,9 @@ pub struct CreateAsignaturaRequest {
     pub semester: String,
 }
 
-/// Crear asignatura - Solo Leaders
+/// POST /asignaturas - Create a new subject (Leader only)
 /// Los datos de horas y actividades se inicializan en valores por defecto
-#[post("/asignaturas/create", format = "json", data = "<asignatura_data>")]
+#[post("/asignaturas", format = "json", data = "<asignatura_data>")]
 pub async fn create_asignatura(
     asignatura_data: Json<CreateAsignaturaRequest>,
     db: &State<AppState>,
@@ -244,10 +250,10 @@ pub async fn create_asignatura(
     }
 }
 
-/// Listar asignaturas
+/// GET /asignaturas - List subjects
 /// - Leader: ve todas las asignaturas
 /// - SubjectLeader: solo ve sus asignaturas (donde leader_id = user_id)
-#[get("/asignaturas/list")]
+#[get("/asignaturas")]
 pub async fn list_asignaturas(
     db: &State<AppState>,
     user: LeaderOrSubjectLeaderUser,
@@ -280,9 +286,9 @@ pub struct UpdateAsignaturaRequest {
     pub weeks: Option<i32>,
 }
 
-/// Actualizar asignatura - Solo Leaders
+/// PUT /asignaturas/<id> - Update a subject (Leader only)
 /// Los Leaders son responsables de llenar los datos de las asignaturas
-#[put("/asignaturas/update/<asignatura_id>", format = "json", data = "<asignatura_data>")]
+#[put("/asignaturas/<asignatura_id>", format = "json", data = "<asignatura_data>")]
 pub async fn update_asignatura(
     asignatura_id: i32,
     asignatura_data: Json<UpdateAsignaturaRequest>,
@@ -313,8 +319,8 @@ pub async fn update_asignatura(
     }
 }
 
-/// Eliminar asignatura - Solo Leaders
-#[delete("/asignaturas/delete/<asignatura_id>")]
+/// DELETE /asignaturas/<id> - Delete a subject (Leader only)
+#[delete("/asignaturas/<asignatura_id>")]
 pub async fn delete_asignatura(
     asignatura_id: i32,
     db: &State<AppState>,
@@ -343,8 +349,8 @@ pub async fn delete_asignatura(
     }
 }
 
-/// Listar jefes de asignatura - Solo Leaders (para el selector al crear)
-#[get("/users/subject_leaders")]
+/// GET /users/subject-leaders - List subject leaders (Leader only, for selector)
+#[get("/users/subject-leaders")]
 pub async fn list_subject_leaders(
     db: &State<AppState>,
     _leader: LeaderUser,

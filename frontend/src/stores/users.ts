@@ -5,13 +5,14 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import UsersService, { type User, type CreateUserRequest, type UpdateUserRequest } from '../services/users'
+import { usersService, type User, type CreateUserRequest, type UpdateUserRequest } from '../services/users'
 
 export const useUsersStore = defineStore('users', () => {
   // State
   const users = ref<User[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+
   // Getters
   const usersCount = computed(() => users.value.length)
   const adminUsers = computed(() => users.value.filter(u => u.role === 'admin'))
@@ -34,10 +35,10 @@ export const useUsersStore = defineStore('users', () => {
     error.value = null
     
     try {
-      const response = await UsersService.getAll()
+      const response = await usersService.list()
       
-      if (response.success && response.users) {
-        users.value = response.users
+      if (response.success && response.data) {
+        users.value = response.data
         return { success: true }
       }
       
@@ -59,10 +60,9 @@ export const useUsersStore = defineStore('users', () => {
     error.value = null
     
     try {
-      const response = await UsersService.create(userData)
+      const response = await usersService.create(userData)
       
       if (response.success) {
-        // Recargar la lista completa para obtener el usuario con el ID correcto
         await fetchUsers()
         return { success: true, message: response.message }
       }
@@ -85,10 +85,9 @@ export const useUsersStore = defineStore('users', () => {
     error.value = null
     
     try {
-      const response = await UsersService.update(id, userData)
+      const response = await usersService.update(id, userData)
       
       if (response.success) {
-        // Recargar la lista completa para obtener los datos actualizados
         await fetchUsers()
         return { success: true, message: response.message }
       }
@@ -105,17 +104,15 @@ export const useUsersStore = defineStore('users', () => {
 
   /**
    * Eliminar un usuario
-   * Optimized: uses filter for cleaner immutable update instead of findIndex + splice
    */
   async function deleteUser(id: number) {
     isLoading.value = true
     error.value = null
     
     try {
-      const response = await UsersService.delete(id)
+      const response = await usersService.delete(id)
       
       if (response.success) {
-        // Optimized: use filter for immutable update
         users.value = users.value.filter(u => u.id !== id)
         return { success: true }
       }

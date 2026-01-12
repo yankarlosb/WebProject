@@ -6,7 +6,8 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import AsignaturasService, { 
+import { 
+  asignaturasService,
   type Asignatura,
   type CreateAsignaturaData,
   type UpdateAsignaturaData,
@@ -37,18 +38,23 @@ export const useAsignaturasStore = defineStore('asignaturas', () => {
    * Cargar asignaturas desde la API
    * El backend filtra automáticamente según el rol del usuario
    */
-  async function loadAsignaturas() {
+  async function fetchAsignaturas() {
     isLoading.value = true
     error.value = null
     
     try {
-      const data = await AsignaturasService.getAsignaturas()
-      asignaturas.value = data
-      return { success: true }
+      const response = await asignaturasService.list()
+      
+      if (response.success && response.data) {
+        asignaturas.value = response.data
+        return { success: true }
+      }
+      
+      error.value = response.message || 'Error al cargar asignaturas'
+      return { success: false, message: error.value }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Error al cargar asignaturas'
-      console.error('Error cargando asignaturas:', err)
-      return { success: false, error: error.value }
+      error.value = 'Error de conexión'
+      return { success: false, message: error.value }
     } finally {
       isLoading.value = false
     }
@@ -62,35 +68,43 @@ export const useAsignaturasStore = defineStore('asignaturas', () => {
     error.value = null
     
     try {
-      await AsignaturasService.createAsignatura(data)
-      // Recargar lista después de crear
-      await loadAsignaturas()
-      return { success: true }
+      const response = await asignaturasService.create(data)
+      
+      if (response.success) {
+        await fetchAsignaturas()
+        return { success: true, message: response.message }
+      }
+      
+      error.value = response.message || 'Error al crear asignatura'
+      return { success: false, message: error.value }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Error al crear asignatura'
-      console.error('Error creando asignatura:', err)
-      return { success: false, error: error.value }
+      error.value = 'Error de conexión'
+      return { success: false, message: error.value }
     } finally {
       isLoading.value = false
     }
   }
 
   /**
-   * Actualizar asignatura (solo SubjectLeaders - sus asignaturas)
+   * Actualizar asignatura
    */
   async function updateAsignatura(id: number, data: UpdateAsignaturaData) {
     isLoading.value = true
     error.value = null
     
     try {
-      await AsignaturasService.updateAsignatura(id, data)
-      // Recargar lista después de actualizar
-      await loadAsignaturas()
-      return { success: true }
+      const response = await asignaturasService.update(id, data)
+      
+      if (response.success) {
+        await fetchAsignaturas()
+        return { success: true, message: response.message }
+      }
+      
+      error.value = response.message || 'Error al actualizar asignatura'
+      return { success: false, message: error.value }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Error al actualizar asignatura'
-      console.error('Error actualizando asignatura:', err)
-      return { success: false, error: error.value }
+      error.value = 'Error de conexión'
+      return { success: false, message: error.value }
     } finally {
       isLoading.value = false
     }
@@ -104,14 +118,18 @@ export const useAsignaturasStore = defineStore('asignaturas', () => {
     error.value = null
     
     try {
-      await AsignaturasService.deleteAsignatura(id)
-      // Recargar lista después de eliminar
-      await loadAsignaturas()
-      return { success: true }
+      const response = await asignaturasService.delete(id)
+      
+      if (response.success) {
+        asignaturas.value = asignaturas.value.filter(a => a.id !== id)
+        return { success: true }
+      }
+      
+      error.value = response.message || 'Error al eliminar asignatura'
+      return { success: false, message: error.value }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Error al eliminar asignatura'
-      console.error('Error eliminando asignatura:', err)
-      return { success: false, error: error.value }
+      error.value = 'Error de conexión'
+      return { success: false, message: error.value }
     } finally {
       isLoading.value = false
     }
@@ -120,18 +138,23 @@ export const useAsignaturasStore = defineStore('asignaturas', () => {
   /**
    * Cargar lista de jefes de asignatura (solo Leaders)
    */
-  async function loadSubjectLeaders() {
+  async function fetchSubjectLeaders() {
     isLoading.value = true
     error.value = null
     
     try {
-      const data = await AsignaturasService.getSubjectLeaders()
-      subjectLeaders.value = data
-      return { success: true }
+      const response = await asignaturasService.getSubjectLeaders()
+      
+      if (response.success && response.data) {
+        subjectLeaders.value = response.data
+        return { success: true }
+      }
+      
+      error.value = response.message || 'Error al cargar jefes de asignatura'
+      return { success: false, message: error.value }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Error al cargar jefes de asignatura'
-      console.error('Error cargando jefes de asignatura:', err)
-      return { success: false, error: error.value }
+      error.value = 'Error de conexión'
+      return { success: false, message: error.value }
     } finally {
       isLoading.value = false
     }
@@ -160,11 +183,11 @@ export const useAsignaturasStore = defineStore('asignaturas', () => {
     asignaturasByPeriodo,
     
     // Actions
-    loadAsignaturas,
+    fetchAsignaturas,
     createAsignatura,
     updateAsignatura,
     deleteAsignatura,
-    loadSubjectLeaders,
+    fetchSubjectLeaders,
     getAsignaturaById,
     clearAsignaturas,
   }

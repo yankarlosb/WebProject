@@ -3,10 +3,28 @@ use std::net::IpAddr;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-/// Configuración del rate limiter
-const MAX_ATTEMPTS: u32 = 5; // Máximo de intentos fallidos
-const BLOCK_DURATION_SECS: u64 = 300; // 5 minutos de bloqueo
-const ATTEMPT_WINDOW_SECS: u64 = 60; // Ventana de tiempo para contar intentos
+/// Configuración por defecto del rate limiter (se pueden sobrescribir desde BD)
+pub const DEFAULT_MAX_ATTEMPTS: u32 = 5;
+pub const DEFAULT_BLOCK_DURATION_SECS: u64 = 300; // 5 minutos
+pub const DEFAULT_ATTEMPT_WINDOW_SECS: u64 = 60;  // 1 minuto
+
+/// Configuración dinámica del rate limiter
+#[derive(Debug, Clone, Copy)]
+pub struct RateLimiterConfig {
+    pub max_attempts: u32,
+    pub block_duration_secs: u64,
+    pub attempt_window_secs: u64,
+}
+
+impl Default for RateLimiterConfig {
+    fn default() -> Self {
+        Self {
+            max_attempts: DEFAULT_MAX_ATTEMPTS,
+            block_duration_secs: DEFAULT_BLOCK_DURATION_SECS,
+            attempt_window_secs: DEFAULT_ATTEMPT_WINDOW_SECS,
+        }
+    }
+}
 
 /// Estructura para rastrear intentos de login por IP
 #[derive(Debug, Clone)]
@@ -29,6 +47,7 @@ impl Default for LoginAttempt {
 /// Rate limiter para intentos de login
 pub struct RateLimiter {
     attempts: Mutex<HashMap<IpAddr, LoginAttempt>>,
+    config: Mutex<RateLimiterConfig>,
 }
 
 impl Default for RateLimiter {
@@ -41,7 +60,19 @@ impl RateLimiter {
     pub fn new() -> Self {
         Self {
             attempts: Mutex::new(HashMap::new()),
+            config: Mutex::new(RateLimiterConfig::default()),
         }
+    }
+
+    /// Actualiza la configuración del rate limiter
+    pub fn update_config(&self, config: RateLimiterConfig) {
+        let mut current = self.config.lock().unwrap();
+        *current = config;
+    }
+
+    /// Obtiene la configuración actual
+    pub fn get_config(&self) -> RateLimiterConfig {
+        *self.config.lock().unwrap()
     }
 
     /// Verifica si una IP está bloqueada
@@ -95,6 +126,7 @@ impl RateLimiter {
 
     /// Registra un intento fallido de login
     pub fn record_failed_attempt(&self, ip: IpAddr) -> bool {
+        let config = self.get_config();
         let mut attempts = self.attempts.lock().unwrap();
         
         let attempt = attempts.entry(ip).or_default();
@@ -113,7 +145,7 @@ impl RateLimiter {
         }
         
         // Verificar si la ventana de tiempo expiró
-        if now.duration_since(attempt.first_attempt) > Duration::from_secs(ATTEMPT_WINDOW_SECS) {
+        if now.duration_since(attempt.first_attempt) > Duration::from_secs(config.attempt_window_secs) {
             // Reiniciar contadores
             attempt.attempts = 1;
             attempt.first_attempt = now;
@@ -123,8 +155,8 @@ impl RateLimiter {
         }
         
         // Verificar si se debe bloquear
-        if attempt.attempts >= MAX_ATTEMPTS {
-            attempt.blocked_until = Some(now + Duration::from_secs(BLOCK_DURATION_SECS));
+        if attempt.attempts >= config.max_attempts {
+            attempt.blocked_until = Some(now + Duration::from_secs(config.block_duration_secs));
             return true;
         }
         
@@ -139,9 +171,10 @@ impl RateLimiter {
 
     /// Limpia entradas antiguas del mapa (para liberar memoria)
     pub fn cleanup_old_entries(&self) {
+        let config = self.get_config();
         let mut attempts = self.attempts.lock().unwrap();
         let now = Instant::now();
-        let cleanup_threshold = Duration::from_secs(BLOCK_DURATION_SECS * 2);
+        let cleanup_threshold = Duration::from_secs(config.block_duration_secs * 2);
         
         attempts.retain(|_, attempt| {
             // Mantener solo entradas recientes o aún bloqueadas
@@ -155,16 +188,17 @@ impl RateLimiter {
 
     /// Obtiene el número de intentos restantes antes del bloqueo
     pub fn get_remaining_attempts(&self, ip: IpAddr) -> u32 {
+        let config = self.get_config();
         let attempts = self.attempts.lock().unwrap();
         
         if let Some(attempt) = attempts.get(&ip) {
             if attempt.blocked_until.is_some() {
                 return 0;
             }
-            return MAX_ATTEMPTS.saturating_sub(attempt.attempts);
+            return config.max_attempts.saturating_sub(attempt.attempts);
         }
         
-        MAX_ATTEMPTS
+        config.max_attempts
     }
 
     /// Checks if cleanup is needed and performs it if the map has grown too large.
@@ -201,12 +235,35 @@ mod tests {
         // No debería estar bloqueado inicialmente
         assert!(!limiter.is_blocked(ip));
         
-        // Registrar intentos fallidos
+        // Registrar intentos fallidos (default max_attempts = 5)
         for _ in 0..4 {
             assert!(!limiter.record_failed_attempt(ip));
         }
         
         // El 5to intento debería bloquear
+        assert!(limiter.record_failed_attempt(ip));
+        assert!(limiter.is_blocked(ip));
+    }
+
+    #[test]
+    fn test_rate_limiter_custom_config() {
+        let limiter = RateLimiter::new();
+        let ip = IpAddr::from_str("192.168.1.2").unwrap();
+        
+        // Configurar con solo 2 intentos permitidos
+        limiter.update_config(RateLimiterConfig {
+            max_attempts: 2,
+            block_duration_secs: 60,
+            attempt_window_secs: 30,
+        });
+        
+        // No debería estar bloqueado inicialmente
+        assert!(!limiter.is_blocked(ip));
+        
+        // Primer intento fallido
+        assert!(!limiter.record_failed_attempt(ip));
+        
+        // Segundo intento debería bloquear
         assert!(limiter.record_failed_attempt(ip));
         assert!(limiter.is_blocked(ip));
     }

@@ -192,12 +192,25 @@
                   </span>
                 </div>
               </div>
-              <span 
-                class="px-3 py-1 text-sm font-medium rounded-full"
-                :class="statusClass(balance.status)"
-              >
-                {{ statusLabel(balance.status) }}
-              </span>
+              <div class="flex items-center gap-3">
+                <AppButton
+                  variant="success"
+                  size="sm"
+                  :loading="isExporting"
+                  @click="exportToExcel"
+                >
+                  <svg v-if="!isExporting" class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  {{ isExporting ? 'Exportando...' : 'Exportar Excel' }}
+                </AppButton>
+                <span 
+                  class="px-3 py-1 text-sm font-medium rounded-full"
+                  :class="statusClass(balance.status)"
+                >
+                  {{ statusLabel(balance.status) }}
+                </span>
+              </div>
             </div>
           </header>
 
@@ -476,6 +489,9 @@ const errorDetail = ref('')
 const balance = ref<Balance | null>(null)
 const activeDetailTab = ref<'summary' | 'fullview'>('summary')
 
+// Estado para exportación
+const isExporting = ref(false)
+
 // Filtros
 const filters = ref({
   academicYearText: '',
@@ -572,6 +588,29 @@ function formatDate(date: string | null): string {
     month: 'short',
     day: 'numeric'
   })
+}
+
+// ============================================================================
+// Exportación a Excel
+// ============================================================================
+
+async function exportToExcel() {
+  if (!balance.value) return
+  
+  isExporting.value = true
+  try {
+    const result = await balancesService.exportToExcel(balance.value.id)
+    if (result.success) {
+      uiStore.showSuccess('Balance exportado exitosamente')
+    } else {
+      uiStore.showError(result.message || 'Error al exportar el balance')
+    }
+  } catch (err) {
+    console.error('Error exporting:', err)
+    uiStore.showError('Error de conexión al exportar')
+  } finally {
+    isExporting.value = false
+  }
 }
 
 // ============================================================================

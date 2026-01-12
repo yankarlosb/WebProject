@@ -5,7 +5,7 @@ use crate::utils::jwt::AdminUser;
 use crate::types::ApiResponseWithData;
 use crate::database::audit_logs;
 use crate::*;
-use rocket::get;
+use rocket::{get, post};
 use serde::{Deserialize, Serialize};
 
 /// Estructura de respuesta para logs de auditoría (serialización para frontend)
@@ -116,4 +116,51 @@ pub async fn get_audit_stats(
         "Estadísticas de auditoría obtenidas".to_string(),
         stats,
     ))
+}
+
+/// Respuesta para la limpieza de logs
+#[derive(Debug, Serialize)]
+pub struct CleanupResponse {
+    pub deleted_count: u64,
+}
+
+/// POST /api/audit/cleanup - Limpiar logs antiguos según la configuración de retención
+#[post("/audit/cleanup")]
+pub async fn cleanup_audit_logs(
+    db: &State<AppState>,
+    admin: AdminUser,
+) -> Json<ApiResponseWithData<CleanupResponse>> {
+    // Obtener días de retención de la configuración
+    let retention_days = crate::routes::settings::get_setting_i32(
+        &db.db, 
+        "audit_retention_days", 
+        90
+    ).await;
+    
+    match utils::audit::cleanup_old_logs(&db.db, retention_days).await {
+        Ok(deleted_count) => {
+            // Registrar la acción de limpieza
+            let _ = crate::utils::audit::AuditLogBuilder::new(
+                audit_logs::EventType::Delete,
+                audit_logs::AuditCategory::Functional,
+                format!(
+                    "Admin '{}' ejecutó limpieza de logs: {} registros eliminados (retención: {} días)",
+                    admin.0.user_name, deleted_count, retention_days
+                ),
+            )
+            .user(admin.0.sub.parse().unwrap_or(0), &admin.0.user_name)
+            .ip(&admin.0.ip)
+            .save(&db.db)
+            .await;
+            
+            Json(ApiResponseWithData::success(
+                format!("Se eliminaron {} logs antiguos (más de {} días)", deleted_count, retention_days),
+                CleanupResponse { deleted_count },
+            ))
+        }
+        Err(e) => Json(ApiResponseWithData::error(format!(
+            "Error al limpiar logs antiguos: {}",
+            e
+        ))),
+    }
 }

@@ -20,7 +20,7 @@ export function getCellValue(value: number | string | undefined): string {
     return ''
   }
   // Legacy numeric values (positive integers from old format) are treated as empty
-  // Current format uses string codes: 'C', 'CP', 'S', 'PL', 'T', 'TE', 'PP'
+  // Current format uses string codes: 'C', 'CP', 'S', 'PL', 'TE', 'T', 'PP', 'EC'
   if (typeof value === 'number') {
     return ''
   }

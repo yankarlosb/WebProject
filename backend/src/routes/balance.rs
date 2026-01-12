@@ -1034,3 +1034,145 @@ async fn update_balance_status_if_complete(db: &DatabaseConnection, balance_id: 
         }
     }
 }
+
+// ============================================================================
+// EXPORTACIÓN A EXCEL
+// ============================================================================
+
+use crate::utils::excel_export::{
+    BalanceExportConfig, FragmentExportData, ActivityPlan, 
+    generate_balance_excel, parse_fragment_data, parse_consultas_data, parse_examenes_data
+};
+use rocket::http::ContentType;
+
+/// Custom responder for Excel file download
+pub struct ExcelFile {
+    pub data: Vec<u8>,
+    pub filename: String,
+}
+
+impl<'r> rocket::response::Responder<'r, 'static> for ExcelFile {
+    fn respond_to(self, _request: &'r rocket::Request<'_>) -> rocket::response::Result<'static> {
+        rocket::Response::build()
+            .header(ContentType::new("application", "vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+            .raw_header("Content-Disposition", format!("attachment; filename=\"{}\"", self.filename))
+            .sized_body(self.data.len(), std::io::Cursor::new(self.data))
+            .ok()
+    }
+}
+
+/// Exportar balance a Excel
+/// GET /api/balances/<id>/export
+#[get("/balances/<balance_id>/export")]
+pub async fn export_balance_excel(
+    db: &State<AppState>,
+    user: LeaderOrSubjectLeaderUser,
+    balance_id: i32,
+) -> Result<ExcelFile, Json<ApiResponse>> {
+    let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
+    let user_role = &user.0.role;
+
+    // Buscar el balance
+    let balance = balances::Entity::find_by_id(balance_id)
+        .one(&db.db)
+        .await
+        .map_err(|e| Json(ApiResponse::error(format!("Error de base de datos: {}", e))))?
+        .ok_or_else(|| Json(ApiResponse::error("Balance no encontrado".to_string())))?;
+
+    // Verificar permisos
+    // SubjectLeader solo puede exportar si tiene fragmentos asignados
+    if user_role != "leader" && user_role != "admin" {
+        let has_fragment = balance_fragments::Entity::find()
+            .filter(balance_fragments::Column::BalanceId.eq(balance_id))
+            .filter(balance_fragments::Column::SubjectLeaderId.eq(user_id))
+            .one(&db.db)
+            .await
+            .map_err(|e| Json(ApiResponse::error(format!("Error: {}", e))))?;
+        
+        if has_fragment.is_none() {
+            return Err(Json(ApiResponse::error("No tiene permisos para exportar este balance".to_string())));
+        }
+    }
+
+    // Obtener fragmentos con datos de asignatura
+    let fragments = balance_fragments::Entity::find()
+        .filter(balance_fragments::Column::BalanceId.eq(balance_id))
+        .all(&db.db)
+        .await
+        .map_err(|e| Json(ApiResponse::error(format!("Error obteniendo fragmentos: {}", e))))?;
+
+    // Construir datos de exportación
+    let mut fragment_data = Vec::new();
+    for fragment in &fragments {
+        // Obtener info de la asignatura
+        let asignatura = asignaturas::Entity::find_by_id(fragment.asignatura_id)
+            .one(&db.db)
+            .await
+            .map_err(|e| Json(ApiResponse::error(format!("Error: {}", e))))?;
+
+        if let Some(asig) = asignatura {
+            let weekly_data = parse_fragment_data(&fragment.data, balance.weeks);
+            let consultas_data = parse_consultas_data(&fragment.data, balance.weeks);
+            let examenes_data = parse_examenes_data(&fragment.data, balance.weeks);
+            
+            fragment_data.push(FragmentExportData {
+                name: asig.name,
+                hours: asig.hours,
+                weekly_data,
+                consultas_data,
+                examenes_data,
+                plan: ActivityPlan {
+                    c: asig.c.unwrap_or(0),
+                    cp: asig.cp.unwrap_or(0),
+                    s: asig.s.unwrap_or(0),
+                    pl: asig.pl.unwrap_or(0),
+                    te: asig.te.unwrap_or(0),
+                    t: asig.t.unwrap_or(0),
+                    pp: asig.pp.unwrap_or(0),
+                    ec: asig.ec.unwrap_or(0),
+                    tc: asig.tc.unwrap_or(0),
+                    ef: asig.ef.unwrap_or(0),
+                },
+            });
+        }
+    }
+
+    // start_date is already NaiveDate (Date type from SeaORM)
+    let start_date = balance.start_date;
+
+    // Parse non_academic_periods from Json
+    let non_academic_periods: Vec<(NaiveDate, NaiveDate, String)> = serde_json::from_value::<Vec<NonAcademicPeriod>>(balance.non_academic_periods.clone())
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|p| {
+            let start = NaiveDate::parse_from_str(&p.start, "%Y-%m-%d").ok()?;
+            let end = NaiveDate::parse_from_str(&p.end, "%Y-%m-%d").ok()?;
+            Some((start, end, p.name))
+        })
+        .collect();
+
+    // Build export config
+    let config = BalanceExportConfig {
+        academic_year: balance.academic_year.clone(),
+        period: balance.period.clone(),
+        academic_year_text: balance.academic_year_text.clone(),
+        start_date,
+        weeks: balance.weeks,
+        fragments: fragment_data,
+        non_academic_periods,
+    };
+
+    // Generate Excel
+    let excel_bytes = generate_balance_excel(&config)
+        .map_err(|e| Json(ApiResponse::error(format!("Error generando Excel: {}", e))))?;
+
+    // Generate filename
+    let filename = format!(
+        "Balance_de_carga_Diurno_{}_{}_{}.xlsx",
+        balance.academic_year_text.replace("-", "_"),
+        balance.period.replace(" ", "_"),
+        balance.academic_year.replace(" ", "_")
+    );
+
+    Ok(ExcelFile { data: excel_bytes, filename })
+}

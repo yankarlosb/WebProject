@@ -146,13 +146,6 @@
                 <p class="text-sm text-gray-600 mt-1">Trazas de auditoría del sistema</p>
               </div>
               <div class="flex gap-2">
-                <select
-                  v-model="logFilter"
-                  class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">Todos los eventos</option>
-                  <option value="security">Solo seguridad</option>
-                </select>
                 <AppButton variant="ghost" size="sm" @click="loadAuditLogs">
                   <template #icon>
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -161,6 +154,107 @@
                   </template>
                   Actualizar
                 </AppButton>
+                <AppButton 
+                  variant="danger" 
+                  size="sm" 
+                  @click="handleCleanupLogs"
+                  :disabled="isCleaningLogs"
+                >
+                  <template #icon>
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </template>
+                  {{ isCleaningLogs ? 'Limpiando...' : 'Limpiar antiguos' }}
+                </AppButton>
+              </div>
+            </div>
+
+            <!-- Filtros avanzados -->
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-medium text-gray-700">Filtros</h3>
+                <button 
+                  @click="clearFilters" 
+                  class="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Limpiar filtros
+                </button>
+              </div>
+              <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <!-- Categoría -->
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Categoría</label>
+                  <select
+                    v-model="logFilter"
+                    class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Todas</option>
+                    <option value="security">Seguridad</option>
+                  </select>
+                </div>
+                
+                <!-- Tipo de evento -->
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Tipo de evento</label>
+                  <select
+                    v-model="eventTypeFilter"
+                    class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Todos</option>
+                    <option v-for="et in eventTypes" :key="et" :value="et">
+                      {{ getEventLabel(et) }}
+                    </option>
+                  </select>
+                </div>
+                
+                <!-- Usuario -->
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Usuario</label>
+                  <select
+                    v-model="userFilter"
+                    class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Todos</option>
+                    <option v-for="u in logUsers" :key="u" :value="u">{{ u }}</option>
+                  </select>
+                </div>
+                
+                <!-- Resultado -->
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Resultado</label>
+                  <select
+                    v-model="successFilter"
+                    class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="success">Exitosos</option>
+                    <option value="failed">Fallidos</option>
+                  </select>
+                </div>
+                
+                <!-- Fecha desde -->
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Desde</label>
+                  <input
+                    type="date"
+                    v-model="dateFromFilter"
+                    class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                <!-- Fecha hasta -->
+                <div>
+                  <label class="block text-xs text-gray-600 mb-1">Hasta</label>
+                  <input
+                    type="date"
+                    v-model="dateToFilter"
+                    class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div class="mt-3 text-xs text-gray-500">
+                Mostrando {{ filteredLogs.length }} de {{ auditLogs.length }} registros
               </div>
             </div>
 
@@ -171,18 +265,20 @@
             </div>
 
             <!-- Empty state -->
-            <div v-else-if="auditLogs.length === 0" class="text-center py-12 bg-gray-50 rounded-lg">
+            <div v-else-if="filteredLogs.length === 0" class="text-center py-12 bg-gray-50 rounded-lg">
               <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <h3 class="mt-2 text-sm font-medium text-gray-900">No hay registros de auditoría</h3>
-              <p class="mt-1 text-sm text-gray-500">Los eventos del sistema aparecerán aquí</p>
+              <p class="mt-1 text-sm text-gray-500">
+                {{ auditLogs.length > 0 ? 'Intenta ajustar los filtros' : 'Los eventos del sistema aparecerán aquí' }}
+              </p>
             </div>
 
             <!-- Logs list -->
-            <div v-else class="space-y-3">
+            <div v-else class="space-y-3 max-h-[600px] overflow-y-auto">
               <div
-                v-for="log in auditLogs"
+                v-for="log in filteredLogs"
                 :key="log.id"
                 class="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:bg-gray-100 transition-colors"
               >
@@ -193,7 +289,7 @@
                       :class="getEventBgColor(log.event_type)"
                     ></div>
                     <div>
-                      <div class="flex items-center gap-2">
+                      <div class="flex items-center gap-2 flex-wrap">
                         <p class="text-sm font-medium text-gray-900">{{ log.description }}</p>
                         <span
                           class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
@@ -225,6 +321,174 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Tab: Configuración del Sistema -->
+          <div v-if="activeTab === 'settings'" class="p-6">
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h2 class="text-xl font-bold text-blue-700">Configuración del Sistema</h2>
+                <p class="text-sm text-gray-600 mt-1">Ajustes de seguridad, sesión y políticas</p>
+              </div>
+              <AppButton 
+                variant="primary" 
+                @click="saveSettings"
+                :disabled="isSavingSettings"
+              >
+                <template #icon>
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                </template>
+                {{ isSavingSettings ? 'Guardando...' : 'Guardar cambios' }}
+              </AppButton>
+            </div>
+
+            <!-- Loading state -->
+            <div v-if="isLoadingSettings" class="text-center py-12">
+              <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p class="text-gray-600 mt-4">Cargando configuraciones...</p>
+            </div>
+
+            <!-- Settings grid -->
+            <div v-else-if="systemSettings" class="grid gap-6 md:grid-cols-2">
+              <!-- Seguridad -->
+              <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h3 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  {{ categoryLabels.security }}
+                </h3>
+                <div class="space-y-4">
+                  <div v-for="setting in systemSettings.security" :key="setting.key">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                      {{ settingLabels[setting.key] || setting.key }}
+                    </label>
+                    <template v-if="getInputType(setting.key) === 'boolean'">
+                      <select
+                        v-model="editedSettings[setting.key]"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="true">Sí</option>
+                        <option value="false">No</option>
+                      </select>
+                    </template>
+                    <template v-else>
+                      <input
+                        :type="getInputType(setting.key) === 'number' ? 'number' : 'text'"
+                        v-model="editedSettings[setting.key]"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      />
+                    </template>
+                    <p v-if="setting.description" class="text-xs text-gray-500 mt-1">{{ setting.description }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sesión -->
+              <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h3 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <svg class="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {{ categoryLabels.session }}
+                </h3>
+                <div class="space-y-4">
+                  <div v-for="setting in systemSettings.session" :key="setting.key">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                      {{ settingLabels[setting.key] || setting.key }}
+                    </label>
+                    <input
+                      :type="getInputType(setting.key) === 'number' ? 'number' : 'text'"
+                      v-model="editedSettings[setting.key]"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p v-if="setting.description" class="text-xs text-gray-500 mt-1">{{ setting.description }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Contraseñas -->
+              <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h3 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <svg class="w-5 h-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                  {{ categoryLabels.password }}
+                </h3>
+                <div class="space-y-4">
+                  <div v-for="setting in systemSettings.password" :key="setting.key">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                      {{ settingLabels[setting.key] || setting.key }}
+                    </label>
+                    <template v-if="getInputType(setting.key) === 'boolean'">
+                      <select
+                        v-model="editedSettings[setting.key]"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="true">Sí</option>
+                        <option value="false">No</option>
+                      </select>
+                    </template>
+                    <template v-else>
+                      <input
+                        :type="getInputType(setting.key) === 'number' ? 'number' : 'text'"
+                        v-model="editedSettings[setting.key]"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      />
+                    </template>
+                    <p v-if="setting.description" class="text-xs text-gray-500 mt-1">{{ setting.description }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Auditoría -->
+              <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h3 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <svg class="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  {{ categoryLabels.audit }}
+                </h3>
+                <div class="space-y-4">
+                  <div v-for="setting in systemSettings.audit" :key="setting.key">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                      {{ settingLabels[setting.key] || setting.key }}
+                    </label>
+                    <template v-if="getInputType(setting.key) === 'boolean'">
+                      <select
+                        v-model="editedSettings[setting.key]"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="true">Sí</option>
+                        <option value="false">No</option>
+                      </select>
+                    </template>
+                    <template v-else>
+                      <input
+                        :type="getInputType(setting.key) === 'number' ? 'number' : 'text'"
+                        v-model="editedSettings[setting.key]"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      />
+                    </template>
+                    <p v-if="setting.description" class="text-xs text-gray-500 mt-1">{{ setting.description }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- No settings -->
+            <div v-else class="text-center py-12 bg-gray-50 rounded-lg">
+              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <h3 class="mt-2 text-sm font-medium text-gray-900">No se pudieron cargar las configuraciones</h3>
+              <AppButton variant="ghost" size="sm" @click="loadSettings" class="mt-4">
+                Reintentar
+              </AppButton>
             </div>
           </div>
         </template>
@@ -303,7 +567,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useUIStore } from '../stores/ui'
 import { useUsersStore } from '../stores/users'
@@ -312,8 +577,10 @@ import {
   getSecurityLogs, 
   formatLogDate,
   getEventConfig,
+  cleanupOldLogs,
   type AuditLog 
 } from '../services/audit'
+import settingsService, { type SettingsGrouped } from '../services/settings'
 import AppLayout from '../components/AppLayout.vue'
 import AppCard from '../components/AppCard.vue'
 import AppButton from '../components/AppButton.vue'
@@ -326,6 +593,7 @@ import { isValidUsername, isValidName, isValidEmail, isValidPassword } from '../
 const authStore = useAuthStore()
 const uiStore = useUIStore()
 const usersStore = useUsersStore()
+const route = useRoute()
 
 // Estado
 const activeTab = ref('users')
@@ -336,13 +604,22 @@ const editingUserId = ref<number | null>(null)
 const tabs = [
   { id: 'users', label: 'Usuarios' },
   { id: 'logs', label: 'Auditoría' },
+  { id: 'settings', label: 'Sistema' },
 ]
 
 // Cargar usuarios al montar el componente
 onMounted(async () => {
+  // Verificar si hay tab en la URL
+  const tabParam = route.query.tab as string
+  if (tabParam && ['users', 'logs', 'settings'].includes(tabParam)) {
+    activeTab.value = tabParam
+  }
+  
   await usersStore.fetchUsers()
   // Cargar logs de auditoría
   await loadAuditLogs()
+  // Cargar configuraciones del sistema
+  await loadSettings()
 })
 
 // ============================================================================
@@ -353,6 +630,62 @@ onMounted(async () => {
 const logFilter = ref<'all' | 'security'>('all')
 const isLoadingLogs = ref(false)
 const auditLogs = ref<AuditLog[]>([])
+
+// Filtros avanzados
+const eventTypeFilter = ref<string>('all')
+const userFilter = ref<string>('')
+const successFilter = ref<'all' | 'success' | 'failed'>('all')
+const dateFromFilter = ref<string>('')
+const dateToFilter = ref<string>('')
+const isCleaningLogs = ref(false)
+
+// Lista de tipos de evento únicos
+const eventTypes = computed(() => {
+  const types = new Set(auditLogs.value.map(l => l.event_type))
+  return Array.from(types).sort()
+})
+
+// Lista de usuarios únicos en los logs
+const logUsers = computed(() => {
+  const users = new Set(auditLogs.value.filter(l => l.user_name).map(l => l.user_name!))
+  return Array.from(users).sort()
+})
+
+// Logs filtrados
+const filteredLogs = computed(() => {
+  return auditLogs.value.filter(log => {
+    // Filtro por tipo de evento
+    if (eventTypeFilter.value !== 'all' && log.event_type !== eventTypeFilter.value) {
+      return false
+    }
+    
+    // Filtro por usuario
+    if (userFilter.value && log.user_name !== userFilter.value) {
+      return false
+    }
+    
+    // Filtro por éxito/fallo
+    if (successFilter.value === 'success' && !log.success) return false
+    if (successFilter.value === 'failed' && log.success) return false
+    
+    // Filtro por fecha desde
+    if (dateFromFilter.value && log.created_at) {
+      const logDate = new Date(log.created_at)
+      const fromDate = new Date(dateFromFilter.value)
+      if (logDate < fromDate) return false
+    }
+    
+    // Filtro por fecha hasta
+    if (dateToFilter.value && log.created_at) {
+      const logDate = new Date(log.created_at)
+      const toDate = new Date(dateToFilter.value)
+      toDate.setHours(23, 59, 59, 999)
+      if (logDate > toDate) return false
+    }
+    
+    return true
+  })
+})
 
 // Cargar logs de auditoría
 async function loadAuditLogs() {
@@ -368,6 +701,128 @@ async function loadAuditLogs() {
   } finally {
     isLoadingLogs.value = false
   }
+}
+
+// Limpiar logs antiguos
+async function handleCleanupLogs() {
+  uiStore.openConfirm({
+    title: 'Limpiar logs antiguos',
+    message: '¿Estás seguro de que deseas eliminar los logs con más de 90 días? Esta acción no se puede deshacer.',
+    confirmText: 'Sí, limpiar',
+    cancelText: 'Cancelar',
+    onConfirm: async () => {
+      isCleaningLogs.value = true
+      try {
+        const result = await cleanupOldLogs()
+        if (result.success) {
+          uiStore.showSuccess(result.message || 'Logs antiguos eliminados')
+          await loadAuditLogs()
+        } else {
+          uiStore.showError(result.message || 'Error al limpiar logs')
+        }
+      } finally {
+        isCleaningLogs.value = false
+      }
+    },
+  })
+}
+
+// Limpiar filtros
+function clearFilters() {
+  eventTypeFilter.value = 'all'
+  userFilter.value = ''
+  successFilter.value = 'all'
+  dateFromFilter.value = ''
+  dateToFilter.value = ''
+}
+
+// ============================================================================
+// CONFIGURACIÓN DEL SISTEMA
+// ============================================================================
+
+const systemSettings = ref<SettingsGrouped | null>(null)
+const editedSettings = ref<Record<string, string>>({})
+const isLoadingSettings = ref(false)
+const isSavingSettings = ref(false)
+
+// Descripciones legibles de las configuraciones
+const settingLabels: Record<string, string> = {
+  // Security
+  max_login_attempts: 'Intentos máximos de login',
+  block_duration_minutes: 'Duración de bloqueo (minutos)',
+  attempt_window_minutes: 'Ventana de intentos (minutos)',
+  require_ip_validation: 'Validar IP en JWT',
+  token_expiration_hours: 'Expiración de token (horas)',
+  // Session
+  session_timeout_minutes: 'Timeout de sesión (minutos)',
+  // Password
+  password_min_length: 'Longitud mínima de contraseña',
+  password_require_uppercase: 'Requerir mayúsculas',
+  password_require_lowercase: 'Requerir minúsculas',
+  password_require_special: 'Requerir caracteres especiales',
+  // Audit
+  audit_log_ip: 'Registrar IP en auditoría',
+  audit_retention_days: 'Retención de logs (días)',
+}
+
+// Nombres de categorías
+const categoryLabels: Record<string, string> = {
+  security: 'Seguridad',
+  session: 'Sesión',
+  password: 'Contraseñas',
+  audit: 'Auditoría',
+}
+
+// Cargar configuraciones
+async function loadSettings() {
+  isLoadingSettings.value = true
+  try {
+    const result = await settingsService.list()
+    if (result.success && result.data) {
+      systemSettings.value = result.data
+      // Inicializar valores editados
+      editedSettings.value = {}
+      for (const category of Object.keys(result.data) as (keyof SettingsGrouped)[]) {
+        for (const setting of result.data[category]) {
+          editedSettings.value[setting.key] = setting.value
+        }
+      }
+    } else {
+      uiStore.showError(result.message || 'Error al cargar configuraciones')
+    }
+  } finally {
+    isLoadingSettings.value = false
+  }
+}
+
+// Guardar configuraciones
+async function saveSettings() {
+  isSavingSettings.value = true
+  try {
+    const result = await settingsService.update(editedSettings.value)
+    if (result.success) {
+      uiStore.showSuccess('Configuraciones guardadas correctamente')
+      await loadSettings()
+    } else {
+      uiStore.showError(result.message || 'Error al guardar configuraciones')
+    }
+  } finally {
+    isSavingSettings.value = false
+  }
+}
+
+// Determinar tipo de input para cada setting
+function getInputType(key: string): 'number' | 'boolean' | 'text' {
+  // Booleanos: claves que empiezan con 'require', 'password_require', o son 'audit_log_ip'
+  if (key.startsWith('require') || key.startsWith('password_require') || key === 'audit_log_ip') {
+    return 'boolean'
+  }
+  // Numéricos: cualquier clave que contenga estas palabras
+  if (key.includes('minutes') || key.includes('hours') || key.includes('attempts') || 
+      key.includes('length') || key.includes('days')) {
+    return 'number'
+  }
+  return 'text'
 }
 
 // Helpers para colores de eventos

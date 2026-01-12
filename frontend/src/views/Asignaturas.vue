@@ -454,11 +454,11 @@ const asignaturasFiltradas = computed(() => {
 
 // Cargar datos iniciales
 onMounted(async () => {
-  await asignaturasStore.loadAsignaturas()
+  await asignaturasStore.fetchAsignaturas()
   
   // Si es Leader, cargar lista de jefes de asignatura
   if (authStore.isLeader) {
-    await asignaturasStore.loadSubjectLeaders()
+    await asignaturasStore.fetchSubjectLeaders()
   }
 })
 
@@ -471,7 +471,7 @@ async function openCreateModal() {
   
   // Cargar jefes de asignatura si no están cargados
   if (authStore.isLeader && asignaturasStore.subjectLeaders.length === 0) {
-    await asignaturasStore.loadSubjectLeaders()
+    await asignaturasStore.fetchSubjectLeaders()
   }
   
   showModal.value = true
@@ -567,7 +567,7 @@ async function handleSave() {
         uiStore.showSuccess('Asignatura actualizada correctamente')
         closeModal()
       } else {
-        uiStore.showError(result.error || 'Error al actualizar la asignatura')
+        uiStore.showError(result.message || 'Error al actualizar la asignatura')
       }
     } else {
       // Crear (Leader)
@@ -576,7 +576,7 @@ async function handleSave() {
         uiStore.showSuccess('Asignatura creada correctamente')
         closeModal()
       } else {
-        uiStore.showError(result.error || 'Error al crear la asignatura')
+        uiStore.showError(result.message || 'Error al crear la asignatura')
       }
     }
   } catch (error) {
@@ -598,7 +598,7 @@ async function confirmDelete(asignatura: Asignatura) {
       if (result.success) {
         uiStore.showSuccess('Asignatura eliminada correctamente')
       } else {
-        uiStore.showError(result.error || 'Error al eliminar la asignatura')
+        uiStore.showError(result.message || 'Error al eliminar la asignatura')
       }
     },
   })

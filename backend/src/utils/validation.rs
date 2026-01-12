@@ -2,6 +2,7 @@
 
 use regex::Regex;
 use once_cell::sync::Lazy;
+use std::sync::Mutex;
 
 // Patrones de validación compilados una sola vez
 static USERNAME_REGEX: Lazy<Regex> = Lazy::new(|| {
@@ -19,6 +20,42 @@ static EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| {
 static SUBJECT_NAME_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"^[a-zA-Z0-9áéíóúÁÉÍÓÚüÜñÑ\s\-\.\(\)]+$").unwrap()
 });
+
+/// Configuración de política de contraseñas
+#[derive(Debug, Clone, Copy)]
+pub struct PasswordPolicy {
+    pub min_length: usize,
+    pub require_uppercase: bool,
+    pub require_lowercase: bool,
+    pub require_special: bool,
+}
+
+impl Default for PasswordPolicy {
+    fn default() -> Self {
+        Self {
+            min_length: 8,
+            require_uppercase: true,
+            require_lowercase: true,
+            require_special: true,
+        }
+    }
+}
+
+// Configuración global de política de contraseñas
+static PASSWORD_POLICY: Lazy<Mutex<PasswordPolicy>> = Lazy::new(|| {
+    Mutex::new(PasswordPolicy::default())
+});
+
+/// Actualiza la política de contraseñas
+pub fn set_password_policy(policy: PasswordPolicy) {
+    let mut current = PASSWORD_POLICY.lock().unwrap();
+    *current = policy;
+}
+
+/// Obtiene la política de contraseñas actual
+pub fn get_password_policy() -> PasswordPolicy {
+    *PASSWORD_POLICY.lock().unwrap()
+}
 
 /// Valida que un username solo contenga caracteres permitidos (alfanumérico y _)
 pub fn is_valid_username(username: &str) -> bool {
@@ -55,18 +92,34 @@ pub fn is_valid_subject_name(name: &str) -> bool {
     SUBJECT_NAME_REGEX.is_match(trimmed)
 }
 
-/// Valida contraseña (mínimo 8 caracteres)
+/// Valida contraseña según la política configurada
 pub fn is_valid_password(password: &str) -> bool {
-    if password.len() <= 8 && password.len() >= 128 {
-        return false
+    let policy = get_password_policy();
+    
+    // Verificar longitud mínima
+    if password.len() < policy.min_length || password.len() > 128 {
+        return false;
     }
 
-    let has_uppercase = password.chars().any(|c| c.is_uppercase());
-    let has_lowercase = password.chars().any(|c| c.is_lowercase());
-    let has_special = password.chars().any(|c| c.is_alphanumeric());
-    let has_number = password.chars().any(|c| c.is_numeric());
+    // Verificar requisitos según política
+    if policy.require_uppercase && !password.chars().any(|c| c.is_uppercase()) {
+        return false;
+    }
     
-    return has_lowercase && has_uppercase && has_special && has_number
+    if policy.require_lowercase && !password.chars().any(|c| c.is_lowercase()) {
+        return false;
+    }
+    
+    if policy.require_special && !password.chars().any(|c| !c.is_alphanumeric()) {
+        return false;
+    }
+    
+    // Siempre requerir al menos un número
+    if !password.chars().any(|c| c.is_numeric()) {
+        return false;
+    }
+    
+    true
 }
 
 /// Sanitiza texto removiendo caracteres peligrosos para SQL/XSS

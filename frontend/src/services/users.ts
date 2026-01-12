@@ -3,7 +3,7 @@
  * Maneja todas las operaciones CRUD de usuarios con el backend
  */
 
-import { httpGet, httpPost } from './http'
+import { httpGet, httpPost, httpPut, httpDelete, type ServiceResponse } from './http'
 import type { UserWithToken } from '../types'
 
 // In admin context, users always include token from database
@@ -27,58 +27,38 @@ export interface UpdateUserRequest {
   created_at?: string
 }
 
-export interface UsersResponse {
-  success: boolean
-  users?: User[]
-  user?: User
-  message?: string
+// ============================================================================
+// SERVICIO (Object literal pattern - standardized)
+// ============================================================================
+
+export const usersService = {
+  /**
+   * GET /users - List all users (Admin only)
+   */
+  async list(): Promise<ServiceResponse<User[]>> {
+    return httpGet<User[]>('/api/users', 'Error al cargar los usuarios')
+  },
+
+  /**
+   * POST /users - Create a new user (Admin only)
+   */
+  async create(userData: CreateUserRequest): Promise<ServiceResponse<void>> {
+    return httpPost('/api/users', userData, 'Error al crear usuario')
+  },
+
+  /**
+   * PUT /users/<id> - Update a user (Admin only)
+   */
+  async update(id: number, userData: UpdateUserRequest): Promise<ServiceResponse<void>> {
+    return httpPut(`/api/users/${id}`, userData, 'Error al actualizar usuario')
+  },
+
+  /**
+   * DELETE /users/<id> - Delete a user (Admin only)
+   */
+  async delete(id: number): Promise<ServiceResponse<void>> {
+    return httpDelete(`/api/users/${id}`, 'Error al eliminar usuario')
+  },
 }
 
-export class UsersService {
-  /**
-   * Obtener todos los usuarios
-   */
-  static async getAll(): Promise<UsersResponse> {
-    const result = await httpGet<User[]>('/api/list_users', 'Error al cargar los usuarios')
-    return {
-      success: result.success,
-      users: result.data,
-      message: result.message,
-    }
-  }
-
-  /**
-   * Crear un nuevo usuario
-   */
-  static async create(userData: CreateUserRequest): Promise<UsersResponse> {
-    const result = await httpPost('/api/create_user', userData, 'Error al crear usuario')
-    return {
-      success: result.success,
-      message: result.message,
-    }
-  }
-
-  /**
-   * Actualizar un usuario existente
-   */
-  static async update(id: number, userData: UpdateUserRequest): Promise<UsersResponse> {
-    const result = await httpPost(`/api/modify_user/${id}`, userData, 'Error al actualizar usuario')
-    return {
-      success: result.success,
-      message: result.message,
-    }
-  }
-
-  /**
-   * Eliminar un usuario
-   */
-  static async delete(id: number): Promise<UsersResponse> {
-    const result = await httpPost(`/api/delete_user/${id}`, undefined, 'Error al eliminar usuario')
-    return {
-      success: result.success,
-      message: result.message,
-    }
-  }
-}
-
-export default UsersService
+export default usersService

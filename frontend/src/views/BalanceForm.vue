@@ -659,7 +659,7 @@ onMounted(async () => {
   try {
     // Cargar asignaturas para la selección
     if (asignaturasStore.asignaturas.length === 0) {
-      await asignaturasStore.loadAsignaturas()
+      await asignaturasStore.fetchAsignaturas()
     }
     
     const balanceId = route.query.id as string

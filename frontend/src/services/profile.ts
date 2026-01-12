@@ -1,48 +1,41 @@
-import { httpPost } from './http'
+/**
+ * Servicio de Perfil de Usuario
+ * Maneja actualización de perfil y cambio de contraseña
+ */
 
-export interface UpdateProfileRequest {
+import { httpPut, type ServiceResponse } from './http'
+
+// ============================================================================
+// TIPOS
+// ============================================================================
+
+export interface UpdateProfileData {
   name: string
   email: string
 }
 
-export interface ChangePasswordRequest {
-  newPassword: string
+export interface ChangePasswordData {
+  new_password: string
 }
 
-export interface ProfileResponse {
-  success: boolean
-  message: string
-  alert: 'success' | 'error'
-}
+// ============================================================================
+// SERVICIO (Object literal pattern - standardized)
+// ============================================================================
 
-export class ProfileService {
+export const profileService = {
   /**
-   * Actualizar perfil del usuario
+   * PUT /profile - Update current user's profile
    */
-  static async updateProfile(data: UpdateProfileRequest): Promise<ProfileResponse> {
-    const result = await httpPost('/api/update_profile', data, 'Error de conexión al actualizar el perfil')
-    return {
-      success: result.success,
-      message: result.message || '',
-      alert: result.success ? 'success' : 'error',
-    }
-  }
+  async update(data: UpdateProfileData): Promise<ServiceResponse<void>> {
+    return httpPut('/api/profile', data, 'Error al actualizar el perfil')
+  },
 
   /**
-   * Cambiar contraseña del usuario
+   * PUT /profile/password - Change current user's password
    */
-  static async changePassword(newPassword: string): Promise<ProfileResponse> {
-    const result = await httpPost(
-      '/api/change_password',
-      { new_password: newPassword },
-      'Error de conexión al cambiar la contraseña'
-    )
-    return {
-      success: result.success,
-      message: result.message || '',
-      alert: result.success ? 'success' : 'error',
-    }
-  }
+  async changePassword(newPassword: string): Promise<ServiceResponse<void>> {
+    return httpPut('/api/profile/password', { new_password: newPassword }, 'Error al cambiar la contraseña')
+  },
 }
 
-export default ProfileService
+export default profileService

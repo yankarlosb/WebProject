@@ -5,7 +5,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import AuthService from '../services/auth'
+import { authService } from '../services/auth'
 import type { User } from '../types'
 import { USER_ROLES, USER_ROLE_LABELS } from '../utils/constants'
 
@@ -35,7 +35,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(username: string, password: string) {
     isLoading.value = true
     try {
-      const response = await AuthService.login(username, password)
+      const response = await authService.login(username, password)
       
       if (response.success && response.user) {
         user.value = response.user
@@ -61,7 +61,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function checkAuth() {
     isLoading.value = true
     try {
-      const result = await AuthService.checkAuth()
+      const result = await authService.checkAuth()
       
       if (result.isAuthenticated && result.user) {
         user.value = result.user
@@ -83,7 +83,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     isLoading.value = true
     try {
-      await AuthService.logout()
+      await authService.logout()
     } finally {
       clearAuth()
       isLoading.value = false
@@ -93,7 +93,6 @@ export const useAuthStore = defineStore('auth', () => {
   function updateUser(updates: Partial<User>) {
     if (user.value) {
       user.value = { ...user.value, ...updates }
-      // Ya no guardamos en localStorage - solo en memoria
     }
   }
 
@@ -101,9 +100,6 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     isAuthenticated.value = false
   }
-
-  // El store ahora empieza vacío - no lee de localStorage
-  // Los datos se cargan cuando se llama checkAuth() desde el router guard
 
   return {
     // State

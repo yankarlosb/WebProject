@@ -1,8 +1,17 @@
+/**
+ * Servicio de Autenticación
+ * Maneja login, logout y verificación de sesión
+ */
+
 import { getApiUrl, API_CONFIG } from '../config/api'
 import type { User } from '../types'
 
 // Re-export User type for backward compatibility
 export type { User }
+
+// ============================================================================
+// TIPOS
+// ============================================================================
 
 export interface AuthResponse {
   success: boolean
@@ -16,12 +25,12 @@ export interface VerifyResponse {
   user?: User
 }
 
+// ============================================================================
+// HELPER INTERNO
+// ============================================================================
+
 /**
  * Makes an auth-specific HTTP request with credentials included
- * @param endpoint - The API endpoint path (e.g., '/api/login')
- * @param method - HTTP method, defaults to 'GET'
- * @param body - Optional request body, will be JSON stringified
- * @returns Promise resolving to the fetch Response
  */
 async function authRequest(
   endpoint: string,
@@ -44,16 +53,26 @@ async function authRequest(
   return fetch(url, options)
 }
 
-export class AuthService {
+/**
+ * Clear auth cookie (fallback)
+ */
+function clearAuthCookie(): void {
+  document.cookie = 'jwt_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+}
+
+// ============================================================================
+// SERVICIO (Object literal pattern - standardized)
+// ============================================================================
+
+export const authService = {
   /**
-   * Realiza el login del usuario
+   * POST /login - Authenticate user
    */
-  static async login(username: string, password: string): Promise<AuthResponse> {
+  async login(username: string, password: string): Promise<AuthResponse> {
     try {
       const response = await authRequest(API_CONFIG.ENDPOINTS.LOGIN, 'POST', { username, password })
       const data = await response.json()
 
-      // Verificar si el login fue exitoso
       if (response.ok && data.success && data.user) {
         return {
           success: true,
@@ -62,7 +81,6 @@ export class AuthService {
         }
       }
 
-      // Login falló
       return {
         success: false,
         message: data.message || 'Credenciales inválidas',
@@ -74,12 +92,12 @@ export class AuthService {
         message: 'Error de conexión con el servidor',
       }
     }
-  }
+  },
 
   /**
-   * Verifica autenticación y devuelve datos del usuario desde JWT
+   * GET /verify - Check authentication status
    */
-  static async checkAuth(): Promise<{ isAuthenticated: boolean; user?: User }> {
+  async checkAuth(): Promise<{ isAuthenticated: boolean; user?: User }> {
     try {
       const response = await authRequest(API_CONFIG.ENDPOINTS.VERIFY, 'GET')
 
@@ -94,29 +112,23 @@ export class AuthService {
         }
       }
 
-      // Token inválido o expirado
       if (response.status === 401) {
         return { isAuthenticated: false }
       }
 
-      // Otro error
       console.error('Error en checkAuth:', response.status)
       return { isAuthenticated: false }
     } catch (error) {
       console.error('Error verificando autenticación:', error)
-
-      return {
-        isAuthenticated: false,
-      }
+      return { isAuthenticated: false }
     }
-  }
+  },
 
   /**
-   * Cierra sesión en frontend y backend
+   * POST /logout - End session
    */
-  static async logout(): Promise<{ success: boolean; message?: string }> {
+  async logout(): Promise<{ success: boolean; message?: string }> {
     try {
-      // Intentar logout en backend
       const response = await authRequest(API_CONFIG.ENDPOINTS.LOGOUT, 'POST')
 
       if (!response.ok) {
@@ -125,20 +137,14 @@ export class AuthService {
     } catch (error) {
       console.error('Error en logout backend:', error)
     } finally {
-      // Intentar limpiar cookie manualmente (fallback)
-      this.clearAuthCookie()
+      clearAuthCookie()
     }
 
     return { success: true }
-  }
-
-  /**
-   * Limpia la cookie de autenticación (fallback)
-   */
-  private static clearAuthCookie(): void {
-    // Esto es un fallback por si el backend no limpia la cookie
-    document.cookie = 'jwt_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
-  }
+  },
 }
 
-export default AuthService
+// Export class for backward compatibility (deprecated)
+export const AuthService = authService
+
+export default authService

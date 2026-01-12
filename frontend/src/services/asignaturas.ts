@@ -3,7 +3,7 @@
  * Maneja las operaciones CRUD de asignaturas con el backend
  */
 
-import { httpGet, httpPost, httpPut, httpDelete } from './http'
+import { httpGet, httpPost, httpPut, httpDelete, type ServiceResponse } from './http'
 
 // ============================================================================
 // TIPOS
@@ -65,86 +65,45 @@ export interface SubjectLeader {
 }
 
 // ============================================================================
-// SERVICIO
+// SERVICIO (Object literal pattern - standardized)
 // ============================================================================
 
-const AsignaturasService = {
+export const asignaturasService = {
   /**
-   * Obtener todas las asignaturas
-   * El backend filtra automáticamente según el rol del usuario
+   * GET /asignaturas - List subjects
+   * Backend filters automatically based on user role
    */
-  async getAsignaturas(): Promise<Asignatura[]> {
-    const result = await httpGet<Asignatura[]>(
-      '/api/asignaturas/list',
-      'Error al obtener las asignaturas'
-    )
-    
-    if (!result.success || !result.data) {
-      throw new Error(result.message || 'Error al obtener las asignaturas')
-    }
-
-    return result.data
+  async list(): Promise<ServiceResponse<Asignatura[]>> {
+    return httpGet<Asignatura[]>('/api/asignaturas', 'Error al obtener las asignaturas')
   },
 
   /**
-   * Crear nueva asignatura (solo Leaders)
+   * POST /asignaturas - Create a new subject (Leader only)
    */
-  async createAsignatura(asignaturaData: CreateAsignaturaData): Promise<void> {
-    const result = await httpPost(
-      '/api/asignaturas/create',
-      asignaturaData,
-      'Error al crear la asignatura'
-    )
-
-    if (!result.success) {
-      throw new Error(result.message || 'Error al crear la asignatura')
-    }
+  async create(data: CreateAsignaturaData): Promise<ServiceResponse<void>> {
+    return httpPost('/api/asignaturas', data, 'Error al crear la asignatura')
   },
 
   /**
-   * Actualizar asignatura (solo SubjectLeaders - sus asignaturas)
+   * PUT /asignaturas/<id> - Update a subject (Leader only)
    */
-  async updateAsignatura(id: number, asignaturaData: UpdateAsignaturaData): Promise<void> {
-    const result = await httpPut(
-      `/api/asignaturas/update/${id}`,
-      asignaturaData,
-      'Error al actualizar la asignatura'
-    )
-
-    if (!result.success) {
-      throw new Error(result.message || 'Error al actualizar la asignatura')
-    }
+  async update(id: number, data: UpdateAsignaturaData): Promise<ServiceResponse<void>> {
+    return httpPut(`/api/asignaturas/${id}`, data, 'Error al actualizar la asignatura')
   },
 
   /**
-   * Eliminar asignatura (solo Leaders)
+   * DELETE /asignaturas/<id> - Delete a subject (Leader only)
    */
-  async deleteAsignatura(id: number): Promise<void> {
-    const result = await httpDelete(
-      `/api/asignaturas/delete/${id}`,
-      'Error al eliminar la asignatura'
-    )
-
-    if (!result.success) {
-      throw new Error(result.message || 'Error al eliminar la asignatura')
-    }
+  async delete(id: number): Promise<ServiceResponse<void>> {
+    return httpDelete(`/api/asignaturas/${id}`, 'Error al eliminar la asignatura')
   },
 
   /**
-   * Obtener lista de jefes de asignatura (solo Leaders)
+   * GET /users/subject-leaders - List subject leaders (for selector)
    */
-  async getSubjectLeaders(): Promise<SubjectLeader[]> {
-    const result = await httpGet<SubjectLeader[]>(
-      '/api/users/subject_leaders',
-      'Error al obtener los jefes de asignatura'
-    )
-    
-    if (!result.success || !result.data) {
-      throw new Error(result.message || 'Error al obtener los jefes de asignatura')
-    }
-
-    return result.data
+  async getSubjectLeaders(): Promise<ServiceResponse<SubjectLeader[]>> {
+    return httpGet<SubjectLeader[]>('/api/users/subject-leaders', 'Error al obtener jefes de asignatura')
   },
 }
 
-export default AsignaturasService
+export default asignaturasService

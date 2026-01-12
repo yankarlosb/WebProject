@@ -3,9 +3,132 @@
   Usa el nuevo sistema de componentes y stores
   Balances cargados desde la API (base de datos)
   SubjectLeaders ven sus fragmentos pendientes
+  Admin ve panel de administración con accesos rápidos
 -->
 <template>
   <AppLayout>
+    <!-- ========== DASHBOARD ADMIN ========== -->
+    <template v-if="authStore.isAdmin">
+      <!-- Welcome Section Admin -->
+      <AppCard class="mb-8">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h2 class="text-3xl font-bold text-red-700">
+              Panel de Administración
+            </h2>
+            <p class="text-gray-600 mt-2">
+              Bienvenido, {{ authStore.user?.name || authStore.userName }}. Gestiona el sistema desde aquí.
+            </p>
+          </div>
+          <div class="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span class="font-medium">Acceso de administrador</span>
+          </div>
+        </div>
+      </AppCard>
+
+      <!-- Estadísticas Admin -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatsCard
+          title="Usuarios"
+          :value="adminStats.totalUsers"
+          icon="users"
+          color="blue"
+        />
+        <StatsCard
+          title="Asignaturas"
+          :value="asignaturasStore.asignaturasCount"
+          icon="book"
+          color="green"
+        />
+        <StatsCard
+          title="Balances"
+          :value="balanceStore.balancesCount"
+          icon="document"
+          color="purple"
+        />
+        <StatsCard
+          title="Eventos Hoy"
+          :value="adminStats.eventsToday"
+          icon="clock"
+          color="yellow"
+        />
+      </div>
+
+      <!-- Accesos Rápidos Admin -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <QuickAccessCard
+          title="Gestión de Usuarios"
+          description="Crear, editar y administrar cuentas de usuario"
+          icon="users"
+          @click="$router.push('/configuracion')"
+        />
+        <QuickAccessCard
+          title="Auditoría"
+          description="Revisar logs de actividad y seguridad"
+          icon="shield"
+          @click="goToAudit"
+        />
+        <QuickAccessCard
+          title="Configuración"
+          description="Ajustes de seguridad, sesión y políticas"
+          icon="settings"
+          @click="goToSettings"
+        />
+      </div>
+
+      <!-- Actividad Reciente -->
+      <AppCard title="Actividad Reciente">
+        <div v-if="isLoadingAudit" class="text-center py-8">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p class="text-gray-600 mt-2 text-sm">Cargando actividad...</p>
+        </div>
+        
+        <div v-else-if="recentAuditLogs.length === 0" class="text-center py-8 text-gray-500">
+          No hay actividad reciente
+        </div>
+        
+        <div v-else class="space-y-3">
+          <div
+            v-for="log in recentAuditLogs"
+            :key="log.id"
+            class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg"
+          >
+            <div
+              class="w-2 h-2 rounded-full mt-2 flex-shrink-0"
+              :class="log.success ? 'bg-green-500' : 'bg-red-500'"
+            ></div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-gray-900 truncate">{{ log.description }}</p>
+              <p class="text-xs text-gray-500 mt-0.5">
+                <span v-if="log.user_name">{{ log.user_name }} • </span>
+                {{ formatLogDate(log.created_at) }}
+              </p>
+            </div>
+            <span
+              class="text-xs px-2 py-0.5 rounded flex-shrink-0"
+              :class="log.category === 'SECURITY' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'"
+            >
+              {{ log.category === 'SECURITY' ? 'Seguridad' : 'Funcional' }}
+            </span>
+          </div>
+        </div>
+        
+        <div class="mt-4 pt-4 border-t border-gray-200 text-center">
+          <button
+            @click="goToAudit"
+            class="text-blue-600 hover:text-blue-800 text-sm font-medium"
+          >
+            Ver todos los logs →
+          </button>
+        </div>
+      </AppCard>
+    </template>
+
+    <!-- ========== DASHBOARD LEADER/USER ========== -->
+    <template v-else>
     <!-- Welcome Section -->
     <AppCard class="mb-8">
       <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -274,6 +397,7 @@
         <p class="mt-1 text-sm text-gray-500">No tienes fragmentos pendientes de completar</p>
       </div>
     </AppCard>
+    </template>
   </AppLayout>
 </template>
 
@@ -283,17 +407,68 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useAsignaturasStore } from '../stores/asignaturas'
 import { useBalanceStore, type BalanceListItem, type PendingFragment } from '../stores/balance'
+import { useUsersStore } from '../stores/users'
 import { useUIStore } from '../stores/ui'
+import { getAuditLogs, formatLogDate, type AuditLog } from '../services/audit'
 import AppLayout from '../components/AppLayout.vue'
 import AppCard from '../components/AppCard.vue'
 import AppButton from '../components/AppButton.vue'
 import StatsCard from '../components/StatsCard.vue'
+import QuickAccessCard from '../components/QuickAccessCard.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const asignaturasStore = useAsignaturasStore()
 const balanceStore = useBalanceStore()
+const usersStore = useUsersStore()
 const uiStore = useUIStore()
+
+// ============================================================================
+// ESTADO ADMIN DASHBOARD
+// ============================================================================
+
+const isLoadingAudit = ref(false)
+const auditLogs = ref<AuditLog[]>([])
+
+const adminStats = ref({
+  totalUsers: 0,
+  eventsToday: 0,
+})
+
+const recentAuditLogs = computed(() => auditLogs.value.slice(0, 5))
+
+async function loadAdminData() {
+  // Cargar usuarios
+  await usersStore.fetchUsers()
+  adminStats.value.totalUsers = usersStore.users.length
+  
+  // Cargar logs de auditoría
+  isLoadingAudit.value = true
+  try {
+    const result = await getAuditLogs()
+    if (result.success && result.data) {
+      auditLogs.value = result.data
+      // Contar eventos de hoy
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      adminStats.value.eventsToday = auditLogs.value.filter(log => {
+        if (!log.created_at) return false
+        const logDate = new Date(log.created_at)
+        return logDate >= today
+      }).length
+    }
+  } finally {
+    isLoadingAudit.value = false
+  }
+}
+
+function goToAudit() {
+  router.push({ path: '/configuracion', query: { tab: 'logs' } })
+}
+
+function goToSettings() {
+  router.push({ path: '/configuracion', query: { tab: 'settings' } })
+}
 
 // Estadísticas
 const stats = ref({
@@ -313,12 +488,18 @@ const recentBalances = computed(() => {
 })
 
 onMounted(async () => {
+  // Admin tiene su propio flujo de datos
+  if (authStore.isAdmin) {
+    await loadAdminData()
+    return
+  }
+  
   // Load data in parallel for better performance
   const promises: Promise<unknown>[] = []
   
   // Cargar asignaturas si no están cargadas
   if (asignaturasStore.asignaturas.length === 0) {
-    promises.push(asignaturasStore.loadAsignaturas())
+    promises.push(asignaturasStore.fetchAsignaturas())
   }
   
   // Cargar balances para Leaders
