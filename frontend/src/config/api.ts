@@ -7,8 +7,8 @@
 const isDevelopment = import.meta.env.DEV;
 
 export const API_CONFIG = {
-  // En desarrollo usa el proxy de Vite, en producción usa la misma URL
-  BASE_URL: isDevelopment ? '' : '',
+  // En desarrollo usa el proxy de Vite, en producción usa la variable de entorno
+  BASE_URL: isDevelopment ? '' : (import.meta.env.VITE_API_URL || ''),
   ENDPOINTS: {
     // Auth
     LOGIN: '/api/login',
