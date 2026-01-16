@@ -1066,11 +1066,11 @@ impl<'r> rocket::response::Responder<'r, 'static> for ExcelFile {
 #[get("/balances/<balance_id>/export")]
 pub async fn export_balance_excel(
     db: &State<AppState>,
-    user: LeaderOrSubjectLeaderUser,
+    user: AuthenticatedUser,
     balance_id: i32,
 ) -> Result<ExcelFile, (Status, Json<ApiResponse>)> {
-    let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
-    let user_role = &user.0.role;
+    let _user_id = user.0.sub.parse::<i32>().unwrap_or(0);
+    let _user_role = &user.0.role;
 
     // Buscar el balance
     let balance = balances::Entity::find_by_id(balance_id)
@@ -1079,21 +1079,9 @@ pub async fn export_balance_excel(
         .map_err(|e| (Status::InternalServerError, Json(ApiResponse::error(format!("Error de base de datos: {}", e)))))?
         .ok_or_else(|| (Status::NotFound, Json(ApiResponse::error("Balance no encontrado".to_string()))))?;
 
-    // Verificar permisos
-    // SubjectLeader solo puede exportar si tiene fragmentos asignados
-    if user_role != "leader" && user_role != "admin" {
-        let has_fragment = balance_fragments::Entity::find()
-            .filter(balance_fragments::Column::BalanceId.eq(balance_id))
-            .filter(balance_fragments::Column::SubjectLeaderId.eq(user_id))
-            .one(&db.db)
-            .await
-            .map_err(|e| (Status::InternalServerError, Json(ApiResponse::error(format!("Error: {}", e)))))?;
-        
-        if has_fragment.is_none() {
-            return Err((Status::Forbidden, Json(ApiResponse::error("No tiene permisos para exportar este balance".to_string()))));
-        }
-    }
-
+    // Nota: Se han eliminado las restricciones de exportación según requerimiento.
+    // Todos los usuarios autenticados pueden exportar el balance.
+    
     // Obtener fragmentos con datos de asignatura
     let fragments = balance_fragments::Entity::find()
         .filter(balance_fragments::Column::BalanceId.eq(balance_id))
