@@ -14,7 +14,11 @@ impl Fairing for CORS {
     }
 
     async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
-        response.set_header(Header::new("Access-Control-Allow-Origin", "http://localhost:5173"));
+        // Obtener el origen permitido de las variables de entorno o usar localhost por defecto
+        let allowed_origin = std::env::var("ALLOWED_ORIGIN")
+            .unwrap_or_else(|_| "http://localhost:5173".to_string());
+
+        response.set_header(Header::new("Access-Control-Allow-Origin", allowed_origin));
         response.set_header(Header::new(
             "Access-Control-Allow-Methods",
             "GET, POST, PUT, DELETE, OPTIONS",
