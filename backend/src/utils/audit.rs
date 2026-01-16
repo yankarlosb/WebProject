@@ -444,6 +444,16 @@ pub async fn get_security_logs(
     get_logs_by_category(db, AuditCategory::Security, limit).await
 }
 
+/// Obtiene todos los logs ordenados por fecha descendente (para exportación)
+pub async fn get_all_logs(
+    db: &DatabaseConnection,
+) -> Result<Vec<audit_logs::Model>, sea_orm::DbErr> {
+    audit_logs::Entity::find()
+        .order_by_desc(audit_logs::Column::CreatedAt)
+        .all(db)
+        .await
+}
+
 /// Elimina logs de auditoría más antiguos que el número de días especificado
 /// Retorna el número de logs eliminados
 pub async fn cleanup_old_logs(

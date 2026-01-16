@@ -167,6 +167,19 @@
                   </template>
                   {{ isCleaningLogs ? 'Limpiando...' : 'Limpiar antiguos' }}
                 </AppButton>
+                <AppButton 
+                  variant="primary" 
+                  size="sm" 
+                  @click="handleDownloadLogs"
+                  :disabled="isDownloadingLogs"
+                >
+                  <template #icon>
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+                    </svg>
+                  </template>
+                  {{ isDownloadingLogs ? 'Descargando...' : 'Descargar logs' }}
+                </AppButton>
               </div>
             </div>
 
@@ -288,21 +301,36 @@
                       class="w-2 h-2 rounded-full mt-2"
                       :class="getEventBgColor(log.event_type)"
                     ></div>
-                    <div>
-                      <div class="flex items-center gap-2 flex-wrap">
-                        <p class="text-sm font-medium text-gray-900">{{ log.description }}</p>
-                        <span
-                          class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                          :class="log.category === 'SECURITY' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'"
+                    <div class="flex-1 min-w-0">
+                      <div class="flex flex-col gap-1">
+                        <div class="flex items-start gap-2 flex-wrap">
+                          <p 
+                            class="text-sm font-medium text-gray-900 break-words"
+                            :class="[expandedLogs.has(log.id!) ? 'whitespace-pre-wrap' : 'truncate max-w-full']"
+                            style="max-width: 600px;"
+                          >
+                            {{ log.description }}
+                          </p>
+                          <span
+                            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium flex-shrink-0"
+                            :class="log.category === 'SECURITY' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'"
+                          >
+                            {{ log.category === 'SECURITY' ? 'Seguridad' : 'Funcional' }}
+                          </span>
+                          <span
+                            v-if="!log.success"
+                            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 flex-shrink-0"
+                          >
+                            Fallido
+                          </span>
+                        </div>
+                        <button 
+                          v-if="log.description && log.description.length > 80"
+                          @click="toggleLog(log.id)" 
+                          class="text-xs text-blue-600 hover:text-blue-800 font-medium focus:outline-none hover:underline self-start"
                         >
-                          {{ log.category === 'SECURITY' ? 'Seguridad' : 'Funcional' }}
-                        </span>
-                        <span
-                          v-if="!log.success"
-                          class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800"
-                        >
-                          Fallido
-                        </span>
+                          {{ expandedLogs.has(log.id!) ? 'Ver menos' : 'Ver más' }}
+                        </button>
                       </div>
                       <p class="text-xs text-gray-600 mt-1">
                         <span v-if="log.user_name">Por {{ log.user_name }} • </span>
@@ -582,6 +610,7 @@ import {
   formatLogDate,
   getEventConfig,
   cleanupOldLogs,
+  downloadLogs,
   type AuditLog 
 } from '../services/audit'
 import settingsService, { type SettingsGrouped } from '../services/settings'
@@ -632,8 +661,11 @@ onMounted(async () => {
 
 // Estado de auditoría
 const logFilter = ref<'all' | 'security'>('all')
-const isLoadingLogs = ref(false)
 const auditLogs = ref<AuditLog[]>([])
+const isLoadingLogs = ref(false)
+const isCleaningLogs = ref(false)
+const isDownloadingLogs = ref(false)
+const expandedLogs = ref<Set<number>>(new Set())
 
 // Filtros avanzados
 const eventTypeFilter = ref<string>('all')
@@ -641,7 +673,15 @@ const userFilter = ref<string>('')
 const successFilter = ref<'all' | 'success' | 'failed'>('all')
 const dateFromFilter = ref<string>('')
 const dateToFilter = ref<string>('')
-const isCleaningLogs = ref(false)
+
+function toggleLog(id: number | undefined) {
+  if (!id) return
+  if (expandedLogs.value.has(id)) {
+    expandedLogs.value.delete(id)
+  } else {
+    expandedLogs.value.add(id)
+  }
+}
 
 // Lista de tipos de evento únicos
 const eventTypes = computed(() => {
@@ -729,6 +769,34 @@ async function handleCleanupLogs() {
       }
     },
   })
+}
+
+// Descargar logs completos
+async function handleDownloadLogs() {
+  isDownloadingLogs.value = true
+  try {
+    const blob = await downloadLogs()
+    if (blob) {
+      // Crear URL y descargar
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      // Nombre con fecha
+      const date = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      a.download = `audit_logs_${date}.log`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      uiStore.showSuccess('Logs descargados correctamente')
+    } else {
+      uiStore.showError('Error al descargar los logs')
+    }
+  } catch (error) {
+    uiStore.showError('Ocurrió un error inesperado al descargar')
+  } finally {
+    isDownloadingLogs.value = false
+  }
 }
 
 // Limpiar filtros

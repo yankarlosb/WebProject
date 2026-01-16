@@ -93,9 +93,9 @@ pub struct AsignaturaInfo {
     pub s: Option<i32>,   // Seminarios
     pub pl: Option<i32>,  // Prácticas de Laboratorio
     pub te: Option<i32>,  // Trabajo Extraclase
-    pub t: Option<i32>,   // Tutorías
+    pub t: Option<i32>,   // Taller
     pub pp: Option<i32>,  // Pruebas Parciales
-    pub ec: Option<i32>,  // Examen de Culminación
+    pub ec: Option<i32>,  // Encuentro Comprobatorio
     pub tc: Option<i32>,  // Trabajo de Curso
     pub ef: Option<i32>,  // Examen Final
 }
@@ -829,7 +829,7 @@ pub async fn get_fragment(
     asignatura_id: i32,
     db: &State<AppState>,
     user: LeaderOrSubjectLeaderUser,
-) -> Json<ApiResponseWithData<FragmentResponse>> {
+) -> Result<Json<ApiResponseWithData<FragmentResponse>>, (Status, Json<ApiResponseWithData<FragmentResponse>>)> {
     let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
     let user_role = &user.0.role;
 
@@ -841,16 +841,16 @@ pub async fn get_fragment(
         .await
     {
         Ok(Some(f)) => f,
-        Ok(None) => return Json(ApiResponseWithData::error("Fragmento no encontrado".to_string())),
-        Err(e) => return Json(ApiResponseWithData::error(format!("Error: {}", e))),
+        Ok(None) => return Err((Status::NotFound, Json(ApiResponseWithData::error("Fragmento no encontrado".to_string())))),
+        Err(e) => return Err((Status::InternalServerError, Json(ApiResponseWithData::error(format!("Error: {}", e))))),
     };
 
     // Verificar permisos: Leader ve todo, SubjectLeader solo su fragmento
     if user_role != "leader" && user_role != "admin" {
         if fragment.subject_leader_id != Some(user_id) {
-            return Json(ApiResponseWithData::error(
+            return Err((Status::Forbidden, Json(ApiResponseWithData::error(
                 "No tienes permiso para ver este fragmento".to_string(),
-            ));
+            ))));
         }
     }
 
@@ -895,7 +895,7 @@ pub async fn get_fragment(
         None
     };
 
-    Json(ApiResponseWithData::success(
+    Ok(Json(ApiResponseWithData::success(
         "Fragmento obtenido exitosamente".to_string(),
         FragmentResponse {
             id: fragment.id,
@@ -910,7 +910,7 @@ pub async fn get_fragment(
             created_at: fragment.created_at.map(|dt| dt.to_string()),
             updated_at: fragment.updated_at.map(|dt| dt.to_string()),
         },
-    ))
+    )))
 }
 
 /// Actualizar un fragmento (SubjectLeader edita su parte)
@@ -922,7 +922,7 @@ pub async fn update_fragment(
     db: &State<AppState>,
     user: LeaderOrSubjectLeaderUser,
     remote_addr: Option<SocketAddr>,
-) -> Json<ApiResponse> {
+) -> Result<Json<ApiResponse>, (Status, Json<ApiResponse>)> {
     let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
     let user_role = &user.0.role;
     let data = fragment_data.into_inner();
@@ -936,8 +936,8 @@ pub async fn update_fragment(
         .await
     {
         Ok(Some(f)) => f,
-        Ok(None) => return Json(ApiResponse::error("Fragmento no encontrado".to_string())),
-        Err(e) => return Json(ApiResponse::error(format!("Error: {}", e))),
+        Ok(None) => return Err((Status::NotFound, Json(ApiResponse::error("Fragmento no encontrado".to_string())))),
+        Err(e) => return Err((Status::InternalServerError, Json(ApiResponse::error(format!("Error: {}", e))))),
     };
 
     // Verificar permisos
@@ -947,9 +947,9 @@ pub async fn update_fragment(
     // Leader y Admin siempre pueden editar cualquier fragmento
     // SubjectLeader solo puede editar su propio fragmento
     if !is_leader && !is_owner {
-        return Json(ApiResponse::error(
+        return Err((Status::Forbidden, Json(ApiResponse::error(
             "No tienes permiso para editar este fragmento".to_string(),
-        ));
+        ))));
     }
 
     // Actualizar el fragmento
@@ -959,7 +959,7 @@ pub async fn update_fragment(
 
     if let Some(status) = data.status {
         if !["pending", "in_progress", "completed"].contains(&status.as_str()) {
-            return Json(ApiResponse::error("Estado inválido".to_string()));
+            return Err((Status::BadRequest, Json(ApiResponse::error("Estado inválido".to_string()))));
         }
         active_model.status = Set(status.clone());
 
@@ -995,9 +995,9 @@ pub async fn update_fragment(
             // Actualizar estado del balance si todos los fragmentos están completos
             update_balance_status_if_complete(&db.db, balance_id).await;
 
-            Json(ApiResponse::success("Fragmento actualizado exitosamente".to_string()))
+            Ok(Json(ApiResponse::success("Fragmento actualizado exitosamente".to_string())))
         }
-        Err(e) => Json(ApiResponse::error(format!("Error al actualizar: {}", e))),
+        Err(e) => Err((Status::InternalServerError, Json(ApiResponse::error(format!("Error al actualizar: {}", e))))),
     }
 }
 
@@ -1068,7 +1068,7 @@ pub async fn export_balance_excel(
     db: &State<AppState>,
     user: LeaderOrSubjectLeaderUser,
     balance_id: i32,
-) -> Result<ExcelFile, Json<ApiResponse>> {
+) -> Result<ExcelFile, (Status, Json<ApiResponse>)> {
     let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
     let user_role = &user.0.role;
 
@@ -1076,8 +1076,8 @@ pub async fn export_balance_excel(
     let balance = balances::Entity::find_by_id(balance_id)
         .one(&db.db)
         .await
-        .map_err(|e| Json(ApiResponse::error(format!("Error de base de datos: {}", e))))?
-        .ok_or_else(|| Json(ApiResponse::error("Balance no encontrado".to_string())))?;
+        .map_err(|e| (Status::InternalServerError, Json(ApiResponse::error(format!("Error de base de datos: {}", e)))))?
+        .ok_or_else(|| (Status::NotFound, Json(ApiResponse::error("Balance no encontrado".to_string()))))?;
 
     // Verificar permisos
     // SubjectLeader solo puede exportar si tiene fragmentos asignados
@@ -1087,10 +1087,10 @@ pub async fn export_balance_excel(
             .filter(balance_fragments::Column::SubjectLeaderId.eq(user_id))
             .one(&db.db)
             .await
-            .map_err(|e| Json(ApiResponse::error(format!("Error: {}", e))))?;
+            .map_err(|e| (Status::InternalServerError, Json(ApiResponse::error(format!("Error: {}", e)))))?;
         
         if has_fragment.is_none() {
-            return Err(Json(ApiResponse::error("No tiene permisos para exportar este balance".to_string())));
+            return Err((Status::Forbidden, Json(ApiResponse::error("No tiene permisos para exportar este balance".to_string()))));
         }
     }
 
@@ -1099,7 +1099,7 @@ pub async fn export_balance_excel(
         .filter(balance_fragments::Column::BalanceId.eq(balance_id))
         .all(&db.db)
         .await
-        .map_err(|e| Json(ApiResponse::error(format!("Error obteniendo fragmentos: {}", e))))?;
+        .map_err(|e| (Status::InternalServerError, Json(ApiResponse::error(format!("Error obteniendo fragmentos: {}", e)))))?;
 
     // Construir datos de exportación
     let mut fragment_data = Vec::new();
@@ -1108,7 +1108,7 @@ pub async fn export_balance_excel(
         let asignatura = asignaturas::Entity::find_by_id(fragment.asignatura_id)
             .one(&db.db)
             .await
-            .map_err(|e| Json(ApiResponse::error(format!("Error: {}", e))))?;
+            .map_err(|e| (Status::InternalServerError, Json(ApiResponse::error(format!("Error: {}", e)))))?;
 
         if let Some(asig) = asignatura {
             let weekly_data = parse_fragment_data(&fragment.data, balance.weeks);
@@ -1164,7 +1164,7 @@ pub async fn export_balance_excel(
 
     // Generate Excel
     let excel_bytes = generate_balance_excel(&config)
-        .map_err(|e| Json(ApiResponse::error(format!("Error generando Excel: {}", e))))?;
+        .map_err(|e| (Status::InternalServerError, Json(ApiResponse::error(format!("Error generando Excel: {}", e)))))?;
 
     // Generate filename
     let filename = format!(

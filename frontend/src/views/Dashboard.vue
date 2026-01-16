@@ -101,8 +101,12 @@
               :class="log.success ? 'bg-green-500' : 'bg-red-500'"
             ></div>
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-gray-900 truncate">{{ log.description }}</p>
-              <p class="text-xs text-gray-500 mt-0.5">
+              <div class="text-sm font-medium text-gray-900">
+                <p class="whitespace-pre-wrap break-words">
+                  {{ log.description }}
+                </p>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">
                 <span v-if="log.user_name">{{ log.user_name }} • </span>
                 {{ formatLogDate(log.created_at) }}
               </p>

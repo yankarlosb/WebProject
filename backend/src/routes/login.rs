@@ -3,7 +3,7 @@ use crate::utils::validation::is_valid_username;
 use crate::utils::audit;
 use crate::routes::settings::{load_rate_limiter_config, get_setting_u64, get_setting_bool};
 use crate::*;
-use rocket::http::{Cookie, CookieJar, SameSite};
+use rocket::http::{Cookie, CookieJar, SameSite, Status};
 use rocket::time::Duration;
 use rocket::{catch, get, post};
 use serde::{Deserialize, Serialize};
@@ -22,7 +22,7 @@ pub async fn login_json(
     db: &State<AppState>,
     cookies: &CookieJar<'_>,
     remote_addr: Option<SocketAddr>,
-) -> Json<LoginResponse> {
+) -> (Status, Json<LoginResponse>) {
     let username = credentials.username.trim();
     let password = &credentials.password;
 
@@ -44,13 +44,13 @@ pub async fn login_json(
     if let Some(ip) = client_ip {
         let (is_blocked, remaining) = db.rate_limiter.check_block_status(ip);
         if is_blocked {
-            return Json(LoginResponse::error(
+            return (Status::TooManyRequests, Json(LoginResponse::error(
                 if let Some(secs) = remaining {
                     format!("Demasiados intentos fallidos. Intente de nuevo en {} segundos.", secs)
                 } else {
                     "Demasiados intentos fallidos. Intente más tarde.".to_string()
                 }
-            ));
+            )));
         }
     }
 
@@ -62,7 +62,7 @@ pub async fn login_json(
             // Registrar en auditoría
             let _ = audit::log_login_failed(&db.db, username, &ip.to_string(), "Usuario inválido").await;
         }
-        return Json(LoginResponse::error("Usuario inválido".to_string()));
+        return (Status::Unauthorized, Json(LoginResponse::error("Usuario inválido".to_string())));
     }
 
     // Buscar el usuario en la base de datos
@@ -79,12 +79,12 @@ pub async fn login_json(
                 // Registrar en auditoría
                 let _ = audit::log_login_failed(&db.db, username, &ip.to_string(), "Usuario no encontrado").await;
             }
-            return Json(LoginResponse::error("Credenciales inválidas".to_string()));
+            return (Status::Unauthorized, Json(LoginResponse::error("Credenciales inválidas".to_string())));
         }
         Err(e) => {
             eprintln!("❌ Error en consulta de login: {:?}", e);
             // En caso de error de BD, tratar como credenciales inválidas para no exponer detalles
-            return Json(LoginResponse::error("Credenciales inválidas".to_string()));
+            return (Status::Unauthorized, Json(LoginResponse::error("Credenciales inválidas".to_string())));
         }
     };
 
@@ -100,19 +100,19 @@ pub async fn login_json(
             // Registrar en auditoría
             let _ = audit::log_login_failed(&db.db, username, &ip.to_string(), "Contraseña incorrecta").await;
             if blocked {
-                return Json(LoginResponse::error(
+                return (Status::TooManyRequests, Json(LoginResponse::error(
                     "Demasiados intentos fallidos. Cuenta bloqueada temporalmente.".to_string()
-                ));
+                )));
             }
             if remaining <= 3 {
-                return Json(LoginResponse::error(
+                return (Status::Unauthorized, Json(LoginResponse::error(
                     format!("Credenciales inválidas. Te quedan {} intentos disponibles.", remaining)
-                ));
+                )));
             }
         } else {
             println!("⚠️ Failed login - No IP available!");
         }
-        return Json(LoginResponse::error("Credenciales inválidas".to_string()));
+        return (Status::Unauthorized, Json(LoginResponse::error("Credenciales inválidas".to_string())));
     }
 
     // Login exitoso - limpiar intentos fallidos
@@ -167,14 +167,14 @@ pub async fn login_json(
                 must_change_password: entity.must_change_password,
             };
 
-            Json(LoginResponse::success(
+            (Status::Ok, Json(LoginResponse::success(
                 "Login exitoso".to_string(),
                 user_info,
-            ))
+            )))
         }
-        Err(_) => Json(LoginResponse::error(
+        Err(_) => (Status::InternalServerError, Json(LoginResponse::error(
             "Error al generar el token".to_string(),
-        )),
+        ))),
     }
 }
 

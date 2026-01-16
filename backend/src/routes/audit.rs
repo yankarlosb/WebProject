@@ -164,3 +164,70 @@ pub async fn cleanup_audit_logs(
         ))),
     }
 }
+
+/// Respuesta personalizada para descarga de archivos
+pub struct LogFileResponse {
+    content: String,
+    filename: String,
+}
+
+impl<'r> rocket::response::Responder<'r, 'static> for LogFileResponse {
+    fn respond_to(self, _: &'r rocket::Request<'_>) -> rocket::response::Result<'static> {
+        rocket::response::Response::build()
+            .header(rocket::http::ContentType::Plain)
+            .header(rocket::http::Header::new("Content-Disposition", format!("attachment; filename=\"{}\"", self.filename)))
+            .sized_body(self.content.len(), std::io::Cursor::new(self.content))
+            .ok()
+    }
+}
+
+/// Exportar logs de auditoría como archivo .log
+#[get("/audit/export")]
+pub async fn export_audit_logs(
+    db: &State<AppState>,
+    _admin: AdminUser,
+) -> Result<LogFileResponse, String> {
+    // Obtener todos los logs usando la función recién creada
+    let logs = match utils::audit::get_all_logs(&db.db).await {
+        Ok(logs) => logs,
+        Err(e) => return Err(format!("Error al obtener logs: {}", e)),
+    };
+
+    // Crear el contenido del archivo
+    let mut content = String::new();
+    content.push_str("================================================================================\n");
+    content.push_str("                        REPORTE DE AUDITORÍA DEL SISTEMA                        \n");
+    content.push_str("================================================================================\n\n");
+    
+    content.push_str(&format!("Fecha de generación: {}\n", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")));
+    content.push_str(&format!("Total de registros: {}\n\n", logs.len()));
+    
+    content.push_str("ID     | FECHA                      | USUARIO         | EVENTO               | CATEGORÍA  | ENTIDAD         | ESTADO | IP              | DESCRIPCIÓN\n");
+    content.push_str("-----------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
+
+    for log in logs {
+
+        let created_at = log.created_at.map(|d| d.to_string()).unwrap_or_else(|| "N/A".to_string());
+        let user = log.user_name.as_deref().unwrap_or("Sistema");
+        
+        let entity = format!("{}:{}", log.entity_type.as_deref().unwrap_or("-"), log.entity_id.map(|id| id.to_string()).unwrap_or_else(|| "-".to_string()));
+        
+        let ip = log.ip_address.as_deref().unwrap_or("-");
+        let status = if log.success { "EXITO" } else { "FALLO" };
+        
+        // Manejar descripción con saltos de línea para que no rompa el formato
+        let desc = log.description.replace("\n", " ");
+
+        content.push_str(&format!(
+            "{:<6} | {:<26} | {:<15} | {:<20} | {:<10} | {:<15} | {:<6} | {:<15} | {}\n",
+            log.id, created_at, user, log.event_type, log.category, entity, status, ip, desc
+        ));
+    }
+
+    let filename = format!("audit_logs_{}.log", chrono::Local::now().format("%Y%m%d_%H%M%S"));
+
+    Ok(LogFileResponse {
+        content,
+        filename,
+    })
+}

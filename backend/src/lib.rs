@@ -68,7 +68,8 @@ use routes::audit::{
     list_audit_logs,
     list_security_logs,
     get_audit_stats,
-    cleanup_audit_logs
+    cleanup_audit_logs,
+    export_audit_logs
 };
 
 use routes::settings::{
@@ -140,6 +141,7 @@ pub async fn run() -> Rocket<Build> {
             list_security_logs,
             get_audit_stats,
             cleanup_audit_logs,
+            export_audit_logs,
             // Rutas de configuración
             list_settings,
             update_settings,

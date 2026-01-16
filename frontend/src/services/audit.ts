@@ -116,3 +116,39 @@ export function getCategoryConfig(category: string) {
 export async function cleanupOldLogs(): Promise<ServiceResponse<CleanupResponse>> {
   return httpPost<CleanupResponse>('/api/audit/cleanup', {}, 'Error al limpiar logs antiguos')
 }
+
+/**
+ * Exporta las trazas de auditoría a partir de todos los registros disponibles
+ * Devuelve un blob para descargar el archivo .log
+ */
+export async function downloadLogs(): Promise<Blob | null> {
+  try {
+    // Necesitamos usar fetch directamente porque los helpers http* asumen JSON
+    // y queremos recibir un blob/archivo
+    const response = await fetch('/api/audit/export', {
+      method: 'GET',
+    })
+
+    if (!response.ok) {
+      throw new Error('Error al descargar los logs')
+    }
+
+    return await response.blob()
+  } catch (error) {
+    console.error('Error downloading audit logs:', error)
+    return null
+  }
+}
+
+const auditService = {
+  getAuditLogs,
+  getSecurityLogs,
+  getAuditStats,
+  formatLogDate,
+  getEventConfig,
+  getCategoryConfig,
+  cleanupOldLogs,
+  downloadLogs
+}
+
+export default auditService
