@@ -130,6 +130,12 @@ router.beforeEach(async (to, _from, next) => {
       return
     }
 
+    // Force password change if required
+    if (authStore.mustChangePassword && to.path !== '/perfil') {
+      next('/perfil')
+      return
+    }
+
     // JWT valid, now check specific permissions
     if (requiresAdmin && !authStore.isAdmin) {
       next('/dashboard')

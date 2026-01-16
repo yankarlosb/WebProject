@@ -12,6 +12,7 @@ export interface User {
   name: string
   email: string
   role: string
+  must_change_password?: boolean
 }
 
 /**

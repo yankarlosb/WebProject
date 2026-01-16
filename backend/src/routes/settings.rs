@@ -37,7 +37,11 @@ pub struct SettingsGrouped {
 /// Request structure for updating settings
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateSettingsRequest {
-    pub settings: HashMap<String, String>,
+    // Usamos Json<serde_json::Value> para permitir tipos mixtos (strings, números, booleanos)
+    // O simplemente HashMap<String, String> y hacemos validación más permisiva en el frontend
+    // Pero el error recibido indica que Rocket espera un String y recibe un número.
+    // La solución más robusta es usar serde_json::Value y convertir manualmente.
+    pub settings: HashMap<String, serde_json::Value>,
 }
 
 /// Response structure for public settings (session timeout)
@@ -118,27 +122,51 @@ pub async fn list_settings(
 }
 
 /// PUT /api/settings - Update system settings (Admin only)
-#[put("/settings", data = "<request>")]
+#[put("/settings", format = "json", data = "<request>")]
 pub async fn update_settings(
     db: &State<AppState>,
     admin: AdminUser,
     request: Json<UpdateSettingsRequest>,
 ) -> Json<ApiResponse> {
-    let updated_keys: Vec<String> = request.settings.keys().cloned().collect();
+    let mut updated_keys = Vec::new();
 
-    // Update each setting
-    for (key, value) in &request.settings {
-        // Find existing setting
-        match system_settings::Entity::find_by_id(key.clone())
+    for (key, json_value) in &request.settings {
+         // Convertir cualquier tipo JSON a String para almacenar en la base de datos
+         let value = match json_value {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Number(n) => n.to_string(),
+            serde_json::Value::Bool(b) => b.to_string(),
+            _ => json_value.to_string(),
+        };
+
+        // Validar que los valores numéricos no sean negativos (si son de tipo numérico o string)
+        if let Ok(num_val) = value.parse::<i32>() {
+             if num_val < 0 {
+                  return Json(ApiResponse {
+                      message: format!("El valor para '{}' no puede ser negativo", key),
+                      alert: "error".to_string(),
+                  });
+             }
+             
+             // Validación específica para retention_days mínima
+             if key == "audit_retention_days" && num_val < 90 {
+                return Json(ApiResponse {
+                    message: format!("El tiempo de retención de auditoría debe ser mínimo de 90 días por seguridad"),
+                    alert: "error".to_string(),
+                });
+             }
+        }
+
+        // Find and update the setting
+        match system_settings::Entity::find_by_id(key.to_string())
             .one(&db.db)
             .await
         {
             Ok(Some(setting)) => {
-                // Update the setting
-                let mut active: system_settings::ActiveModel = setting.into();
-                active.value = Set(value.clone());
-
-                if let Err(e) = active.update(&db.db).await {
+                let mut active_model: system_settings::ActiveModel = setting.into();
+                active_model.value = Set(value.clone());
+                
+                if let Err(e) = active_model.update(&db.db).await {
                     // Log failure
                     let _ = AuditLogBuilder::new(
                         EventType::SettingsUpdated,
@@ -170,6 +198,8 @@ pub async fn update_settings(
                 });
             }
         }
+
+        updated_keys.push(key.clone());
     }
 
     // Log success

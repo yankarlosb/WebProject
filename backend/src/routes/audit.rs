@@ -130,12 +130,12 @@ pub async fn cleanup_audit_logs(
     db: &State<AppState>,
     admin: AdminUser,
 ) -> Json<ApiResponseWithData<CleanupResponse>> {
-    // Obtener días de retención de la configuración
+    // Obtener días de retención de la configuración, forzando mínimo 90 días por seguridad
     let retention_days = crate::routes::settings::get_setting_i32(
         &db.db, 
         "audit_retention_days", 
         90
-    ).await;
+    ).await.max(90);
     
     match utils::audit::cleanup_old_logs(&db.db, retention_days).await {
         Ok(deleted_count) => {

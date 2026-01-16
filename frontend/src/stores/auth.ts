@@ -30,6 +30,7 @@ export const useAuthStore = defineStore('auth', () => {
     return USER_ROLE_LABELS[role as keyof typeof USER_ROLE_LABELS] || 'Usuario'
   })
   const userRoleRaw = computed(() => user.value?.role || USER_ROLES.USER)
+  const mustChangePassword = computed(() => user.value?.must_change_password ?? false)
 
   // Actions
   async function login(username: string, password: string) {
@@ -117,6 +118,7 @@ export const useAuthStore = defineStore('auth', () => {
     userEmail,
     userRole,
     userRoleRaw,
+    mustChangePassword,
     
     // Actions
     login,

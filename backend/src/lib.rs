@@ -96,48 +96,9 @@ pub async fn run() -> Rocket<Build> {
     let audit_log_ip = routes::settings::load_audit_log_ip_setting(&db).await;
     utils::audit::set_audit_log_ip(audit_log_ip);
     
-    // Tarea en segundo plano para rotación automática de logs (Cronjob diario)
-    let db_clone = db.clone();
-    tokio::spawn(async move {
-        // Intervalo de 24 horas
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(24 * 60 * 60));
-        
-        loop {
-            // El primer tick es inmediato
-            interval.tick().await;
-
-            // Log de consola para depuración
-            println!("SYSTEM [Cronjob]: Iniciando verificación de rotación de logs...");
-
-            let retention_days = routes::settings::get_setting_i32(
-                &db_clone, 
-                "audit_retention_days", 
-                90
-            ).await;
-            
-            match utils::audit::cleanup_old_logs(&db_clone, retention_days).await {
-                Ok(count) => {
-                    if count > 0 {
-                        println!("SYSTEM [Cronjob]: Limpieza completada. {} registros eliminados.", count);
-                        
-                        // Registrar evento de auditoría
-                        let _ = utils::audit::AuditLogBuilder::new(
-                            database::audit_logs::EventType::Delete,
-                            database::audit_logs::AuditCategory::Security,
-                            format!("SYSTEM: Limpieza automática de logs ({} eliminados, retención: {} días)", count, retention_days),
-                        )
-                        .user(0, "SYSTEM")
-                        .ip("127.0.0.1")
-                        .save(&db_clone)
-                        .await;
-                    }
-                },
-                Err(e) => {
-                    eprintln!("SYSTEM [Cronjob]: Error en limpieza de logs: {}", e);
-                }
-            }
-        }
-    });
+    // NOTA: Se ha removido el Cronjob automático a petición para mayor seguridad de las trazas.
+    // La limpieza de logs antiguos ahora se realiza exclusivamente de forma manual desde el panel
+    // de administración, con un límite mínimo forzado de 90 días.
 
     let frontend_path = if cfg!(debug_assertions) {
         "../frontend/src"

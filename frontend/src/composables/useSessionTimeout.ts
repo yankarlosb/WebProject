@@ -86,6 +86,11 @@ export function useSessionTimeout() {
    * Start monitoring activity
    */
   const startMonitoring = () => {
+    // Prevent duplicate intervals
+    if (timeoutCheckInterval) {
+        stopMonitoring()
+    }
+
     // Add activity event listeners
     ACTIVITY_EVENTS.forEach(event => {
       document.addEventListener(event, updateActivity, { passive: true })
@@ -138,8 +143,9 @@ export function useSessionTimeout() {
   }
 
   // Watch authentication state
-  watch(() => authStore.isAuthenticated, (isAuth) => {
+  watch(() => authStore.isAuthenticated, async (isAuth) => {
     if (isAuth) {
+      await fetchTimeoutSetting()
       startMonitoring()
     } else {
       stopMonitoring()
@@ -147,8 +153,8 @@ export function useSessionTimeout() {
   })
 
   // Lifecycle hooks for component usage
-  onMounted(() => {
-    initialize()
+  onMounted(async () => {
+    await initialize()
   })
 
   onUnmounted(() => {

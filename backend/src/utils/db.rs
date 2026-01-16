@@ -49,6 +49,7 @@ pub async fn create_user(
         email: Set(email.to_string()),
         token: Set(hashed_password),
         role: Set(Some(role.to_string())),
+        must_change_password: Set(true),
         ..Default::default()
     };
 
@@ -166,6 +167,7 @@ pub async fn change_user_password(
 
     let mut user_active: ActiveModel = user.into();
     user_active.token = Set(hashed_password);
+    user_active.must_change_password = Set(false);
     user_active.update(db).await?;
 
     Ok(())

@@ -201,6 +201,7 @@ pub struct UserInfo {
     pub name: String,
     pub email: String,
     pub role: String,
+    pub must_change_password: bool,
 }
 
 impl LoginResponse {

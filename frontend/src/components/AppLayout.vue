@@ -242,6 +242,11 @@ const navigationItems = [
 
 // Filtrar items de navegación según permisos
 const visibleNavigationItems = computed(() => {
+  // If user must change password, hide all navigation
+  if (authStore.mustChangePassword) {
+    return []
+  }
+
   return navigationItems.filter(item => {
     if (item.requiresAdmin) {
       return authStore.isAdmin

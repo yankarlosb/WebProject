@@ -164,6 +164,7 @@ pub async fn login_json(
                 name: entity.name.clone(),
                 email: entity.email.clone(),
                 role: entity.role.clone().unwrap_or_else(|| "user".to_string()),
+                must_change_password: entity.must_change_password,
             };
 
             Json(LoginResponse::success(
@@ -208,14 +209,23 @@ pub struct VerifyResponse {
 }
 
 #[get("/verify")]
-pub fn verify_auth(user: AuthenticatedUser) -> Json<VerifyResponse> {
+pub async fn verify_auth(user: AuthenticatedUser, db: &State<AppState>) -> Json<VerifyResponse> {
+    let user_id = user.0.sub.parse::<i32>().unwrap_or(0);
+
+    // Obtener estado actualizado de must_change_password desde la BD
+    let must_change_password = match usuarios::Entity::find_by_id(user_id).one(&db.db).await {
+        Ok(Some(u)) => u.must_change_password,
+        _ => false,
+    };
+
     // Extraer los datos del usuario desde los claims del JWT
     let user_info = UserInfo {
-        id: user.0.sub.parse().unwrap_or(0),
+        id: user_id,
         user_name: user.0.user_name.clone(),
         name: user.0.name.clone(),
         email: user.0.email.clone(),
         role: user.0.role.clone(),
+        must_change_password,
     };
 
     Json(VerifyResponse {

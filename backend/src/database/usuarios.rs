@@ -19,6 +19,7 @@ pub struct Model {
     pub role: Option<String>,
     #[sea_orm(column_type = "Text", unique)]
     pub user_name: String,
+    pub must_change_password: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
