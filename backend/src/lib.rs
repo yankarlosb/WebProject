@@ -112,7 +112,7 @@ pub async fn run() -> Rocket<Build> {
         .merge(("port", std::env::var("PORT").unwrap_or_else(|_| "8000".to_string()).parse::<u16>().unwrap_or(8000)))
         .merge(("address", "0.0.0.0"));
 
-    rocket::custom(figment)
+    let mut rocket = rocket::custom(figment)
         .manage(AppState { db, rate_limiter })
         .attach(CORS)
         .mount("/api", routes![
@@ -152,6 +152,15 @@ pub async fn run() -> Rocket<Build> {
             update_settings,
             get_public_settings,
         ])
-        .register("/", catchers![unauthorized, forbidden])
-        .mount("/", FileServer::from(frontend_path))
+        .register("/", catchers![unauthorized, forbidden]);
+
+    // Solo servir archivos estáticos si existen (Dev mode o Monolithic deploy)
+    // En producción con Vercel + Render, esto se omitirá y evitará el panic.
+    if std::path::Path::new(frontend_path).exists() {
+        rocket = rocket.mount("/", FileServer::from(frontend_path));
+    } else {
+        println!("⚠️ Frontend path '{}' not found. Serving API only.", frontend_path);
+    }
+
+    rocket
 }
