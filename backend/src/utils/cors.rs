@@ -1,5 +1,5 @@
 use rocket::fairing::{Fairing, Info, Kind};
-use rocket::http::Header;
+use rocket::http::{Header, Method, Status};
 use rocket::{Request, Response};
 
 pub struct CORS;
@@ -49,5 +49,12 @@ impl Fairing for CORS {
             "Content-Type, Authorization",
         ));
         response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+
+        // Si es una petición OPTIONS, aseguramos que el status sea 204 o 200
+        // Esto arregla el "No matching routes for OPTIONS" devolviendo éxito
+        if request.method() == Method::Options {
+            response.set_status(Status::NoContent);
+            response.set_header(Header::new("Content-Length", "0"));
+        }
     }
 }
