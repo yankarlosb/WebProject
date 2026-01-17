@@ -2,7 +2,7 @@
 **/target/
 **/*.rs.bk
 *.pdb
-Cargo.lock
+# Cargo.lock - Should be committed for binaries
 
 # Variables de entorno
 .env
@@ -32,7 +32,7 @@ desktop.ini
 
 # Dependencias Node (si usas npm en el futuro)
 node_modules/
-package-lock.json
+# package-lock.json - Should be committed
 yarn.lock
 
 # Build outputs
@@ -50,7 +50,7 @@ temp/
 
 # Otros
 documents/
-*.sql*
+# *.sql* - Required for migrations
 *.sh
 *.fish
 *.tex
