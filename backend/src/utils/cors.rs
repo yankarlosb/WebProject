@@ -1,9 +1,16 @@
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::http::{Header, Method, Status};
-use rocket::{Request, Response};
+use rocket::{Request, Response, options};
 
 pub struct CORS;
 
+/// Ruta para manejar todas las peticiones OPTIONS (preflight)
+/// Esto evita el error "No matching routes for OPTIONS"
+#[options("/<_..>")]
+pub fn all_options() -> Status {
+    Status::NoContent
+}
+   
 #[rocket::async_trait]
 impl Fairing for CORS {
     fn info(&self) -> Info {

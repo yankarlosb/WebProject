@@ -25,7 +25,7 @@ pub mod types;
 
 // Re-exportar los módulos específicos de entidades para facilitar el acceso
 pub use database::{asignaturas, usuarios};
-pub use utils::cors::CORS;
+pub use utils::cors::{CORS, all_options};
 pub use utils::rate_limiter::RateLimiter;
 
 
@@ -115,6 +115,7 @@ pub async fn run() -> Rocket<Build> {
     let mut rocket = rocket::custom(figment)
         .manage(AppState { db, rate_limiter })
         .attach(CORS)
+        .mount("/", routes![all_options])
         .mount("/api", routes![
             login_json,
             create_user,
